@@ -1,6 +1,6 @@
 const { validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
-const User = require('../models/user');
+const { User } = require('../models/index');
 const { Op } = require('sequelize');
 const crypto = require('crypto');
 const otpGenerator = require('otp-generator');
@@ -32,9 +32,9 @@ const register = async (req, res) => {
 
     user = await User.create({ username, email, password });
     setTimeout(async () => {
-      const checkUser = await User.findOne({ where: { id: user.id } });
+      const checkUser = await User.findOne({ where: { userId: user.userId } });
       if (checkUser && !checkUser.isVerified) {
-        await User.destroy({ where: { id: user.id } });
+        await User.destroy({ where: { userId: user.userId } });
         console.log(`Người dùng ${user.email} bị xóa do không xác thực OTP`);
       }
     }, 5 * 60 * 1000);
@@ -134,8 +134,8 @@ const login = async (req, res) => {
       return res.status(400).json({ msg: 'Thông tin đăng nhập không hợp lệ' });
     }
 
-    const payload = { user: { id: user.id } };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const payload = { user: { userId: user.userId } };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '12h' });
 
     res.json({ token });
   } catch (err) {

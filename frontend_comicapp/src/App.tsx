@@ -11,7 +11,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import VerifyOTPPage from "./pages/auth/VerifyOTPPage";
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
-import ComicDetailPage from "./pages/ComicDetail"
+import ComicDetailPage from "./pages/ComicDetailPage"
 import ProfilePage from "./pages/ProfilePage";
 import SearchPage from "./pages/SearchPage";
 import "./App.css";

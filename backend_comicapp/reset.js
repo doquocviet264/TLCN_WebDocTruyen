@@ -1,13 +1,18 @@
 const User = require('./models/user'); // import model User
-const sequelize = require('./config/db'); // import sequelize instance
+const sequelize = require('./config/database'); // import sequelize instance
 
 (async () => {
   try {
     await sequelize.authenticate(); // kiểm tra kết nối
     console.log("✅ Database connected successfully");
 
-    await User.sync({ force: true }); // xóa và tạo lại bảng Users
-    console.log("✅ Users table reset successfully");
+    // Xóa toàn bộ dữ liệu trong bảng Users (reset cả AUTO_INCREMENT)
+    await User.destroy({
+      where: {},
+      truncate: true
+    });
+
+    console.log("✅ All data in Users table deleted successfully");
 
     process.exit(0);
   } catch (err) {
