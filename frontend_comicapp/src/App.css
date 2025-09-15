@@ -5,3 +5,14 @@
   padding-left: 1rem;  /* giữ padding 2 bên */
   padding-right: 1rem;
 }
+.custom-card-content {
+  padding-top: 0.25rem !important;
+  margin-top: -1.5rem !important;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE và Edge */
+  scrollbar-width: none; /* Firefox */
+}

@@ -43,7 +43,7 @@ const getCommentsByComic = async (req, res) => {
             currentPage: page,
         });
     } catch (error) {
-        console.error(error);
+        console.error("Lỗi khi lấy danh sách bình luận cho truyện",error);
         res.status(500).json({ message: 'Lỗi máy chủ' });
     }
 };
@@ -72,7 +72,7 @@ const createComment = async (req, res) => {
 
         res.status(201).json(result.get({ plain: true }));
     } catch (error) {
-        console.error(error);
+        console.error("Lỗi khi tạo bình luận",error);
         res.status(500).json({ message: 'Lỗi máy chủ' });
     }
 };
@@ -94,13 +94,39 @@ const toggleLikeComment = async (req, res) => {
             res.json({ liked: true, message: 'Thích thành công' });
         }
     } catch (error) {
-        console.error(error);
+        console.error("Lỗi khi thích hoặc không thích:", error);
         res.status(500).json({ message: 'Lỗi máy chủ' });
     }
 };
+// Hàm lấy các bình luận gần đây nhất 
+const getRecentComments = async (req, res) => {
+    try {
+        const comments = await Comment.findAll({
+            limit: 10, // Lấy 7 bình luận mới nhất
+            where: { parentId: null }, // Chỉ lấy các bình luận gốc, không lấy trả lời
+            order: [['createdAt', 'DESC']],
+            attributes: ['commentId', 'content', 'createdAt'],
+            include: [
+                {
+                    model: User,
+                    attributes: ['username', 'avatar'], // Lấy thông tin người dùng
+                },
+                {
+                    model: Comic,
+                    attributes: ['title', 'slug'], // Lấy thông tin truyện để tạo link
+                }
+            ]
+        });
 
+        res.json(comments);
+    } catch (error) {
+        console.error("Lỗi khi lấy bình luận gần đây:", error);
+        res.status(500).json({ message: "Lỗi máy chủ" });
+    }
+};
 module.exports = {
     getCommentsByComic,
     createComment,
     toggleLikeComment,
+    getRecentComments
 };

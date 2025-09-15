@@ -107,6 +107,7 @@ const verifyOTP = async (req, res) => {
 
     res.json({ msg: 'Xác thực tài khoản thành công' });
   } catch (err) {
+    console.error('Lỗi khi xác nhận OTP:', err);
     res.status(500).json({ msg: 'Lỗi máy chủ' });
   }
 };
@@ -139,6 +140,7 @@ const login = async (req, res) => {
 
     res.json({ token });
   } catch (err) {
+    console.error('Lỗi khi đăng nhập:', err);
     res.status(500).json({ msg: 'Lỗi máy chủ' });
   }
 };
@@ -192,6 +194,7 @@ const resetPassword = async (req, res) => {
 
     res.json({ msg: 'Đặt lại mật khẩu thành công' });
   } catch (err) {
+    console.error('Lỗi khi đặt lại mật khẩu:', err);
     res.status(500).json({ msg: 'Lỗi máy chủ' });
   }
 };

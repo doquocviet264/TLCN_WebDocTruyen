@@ -13,6 +13,7 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import ComicDetailPage from "./pages/ComicDetailPage"
 import ProfilePage from "./pages/ProfilePage";
+import ProfilePage2 from "./pages/profilepage2";
 import SearchPage from "./pages/SearchPage";
 import "./App.css";
 import { AuthProvider } from "./context/AuthContext";
@@ -34,6 +35,7 @@ function App() {
             <Route path="/truyen-tranh/:slug" element={<ComicDetailPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/profile2" element={<ProfilePage2 />} />
             <Route path="/search" element={<SearchPage />} />
           </Routes>
           <ToastContainer position="top-right" autoClose={3000} />

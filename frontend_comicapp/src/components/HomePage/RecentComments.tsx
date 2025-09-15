@@ -1,76 +1,124 @@
-import { Card } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { Link } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const recentComments = [
-  {
-    id: 1,
-    chapter: "Chương 1095",
-    comicTitle: "One Piece",
-    content: "Chương này quá hay! Luffy đã mạnh hơn rất nhiều.",
-    user: {
-      name: "Minh Anh",
-      avatar: "/diverse-user-avatars.png",
-      initials: "MA",
-    },
-    time: "5 phút trước",
-  },
-  {
-    id: 2,
-    chapter: "Chương 180",
-    comicTitle: "Solo Leveling",
-    content: "Jin Woo ngày càng bá đạo, không thể chờ đợi chương tiếp theo!",
-    user: {
-      name: "Hoàng Nam",
-      avatar: "/diverse-user-avatar-set-2.png",
-      initials: "HN",
-    },
-    time: "15 phút trước",
-  },
-  {
-    id: 3,
-    chapter: "Chương 590",
-    comicTitle: "Tower of God",
-    content: "Baam đã trở nên mạnh mẽ hơn rất nhiều so với trước.",
-    user: {
-      name: "Thu Hà",
-      avatar: "/diverse-user-avatars-3.png",
-      initials: "TH",
-    },
-    time: "1 giờ trước",
-  },
-]
+// --- Interfaces ---
+interface User {
+  username: string;
+  avatar?: string;
+}
 
+interface Comic {
+  title: string;
+  slug: string;
+}
+
+interface Comment {
+  commentId: number;
+  content: string;
+  createdAt: string;
+  User: User;
+  Comic: Comic;
+}
+
+// --- Component Skeleton ---
+const CommentSkeleton = () => (
+  <div className="space-y-2">
+    <Skeleton className="h-5 w-3/4" />
+    <Skeleton className="h-4 w-full" />
+    <div className="flex items-center space-x-2">
+      <Skeleton className="h-6 w-6 rounded-full" />
+      <Skeleton className="h-4 w-20" />
+    </div>
+  </div>
+);
+
+// --- Component Chính ---
 export function RecentComments() {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRecentComments = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get<Comment[]>("http://localhost:3000/api/comments/recent");
+        setComments(response.data);
+      } catch (error) {
+        console.error("Failed to fetch recent comments:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRecentComments();
+  }, []);
+
+  const timeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    let interval = seconds / 31536000;
+    if (interval > 1) return `${Math.floor(interval)} năm trước`;
+    interval = seconds / 2592000;
+    if (interval > 1) return `${Math.floor(interval)} tháng trước`;
+    interval = seconds / 86400;
+    if (interval > 1) return `${Math.floor(interval)} ngày trước`;
+    interval = seconds / 3600;
+    if (interval > 1) return `${Math.floor(interval)} giờ trước`;
+    interval = seconds / 60;
+    if (interval > 1) return `${Math.floor(interval)} phút trước`;
+    return `Vừa xong`;
+  };
+  
+  const getInitials = (name: string) => {
+      return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  }
+
   return (
     <Card className="p-4 bg-card/50 backdrop-blur-sm border-border/50">
-      <h3 className="font-semibold mb-4">Bình luận gần đây</h3>
+      {/* Tiêu đề */}
+      <h3 className="text-xl font-montserrat font-bold mb-4">Bình luận mới nhất</h3>
 
-      <div className="space-y-4">
-        {recentComments.map((comment) => (
-          <div key={comment.id} className="space-y-2">
-            <div className="text-sm">
-              <span className="font-medium text-primary cursor-pointer hover:underline">{comment.chapter}</span>
-              <span className="text-muted-foreground"> - </span>
-              <span className="font-medium cursor-pointer hover:text-primary transition-colors">
-                {comment.comicTitle}
-              </span>
+      <div className="space-y-5">
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => <CommentSkeleton key={i} />)
+        ) : (
+          comments.map((comment) => (
+            <div key={comment.commentId} className="space-y-2">
+              {/* Link đến truyện */}
+              <Link to={`/truyen-tranh/${comment.Comic.slug}`} className="text-base group">
+                <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                  {comment.Comic.title}
+                </span>
+              </Link>
+              
+              {/* Nội dung bình luận */}
+              <p className="text-base text-muted-foreground leading-relaxed line-clamp-2">
+                {comment.content}
+              </p>
+
+              {/* Thông tin người dùng */}
+              <div className="flex items-center space-x-2">
+                <Avatar className="h-7 w-7">
+                  <AvatarImage src={comment.User.avatar || "/placeholder.svg"} alt={comment.User.username} />
+                  <AvatarFallback className="text-sm">
+                    {getInitials(comment.User.username)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium">{comment.User.username}</span>
+                <span className="text-sm text-muted-foreground">•</span>
+                <span className="text-sm text-muted-foreground">{timeAgo(comment.createdAt)}</span>
+              </div>
             </div>
-
-            <p className="text-sm text-muted-foreground leading-relaxed">{comment.content}</p>
-
-            <div className="flex items-center space-x-2">
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={comment.user.avatar || "/placeholder.svg"} alt={comment.user.name} />
-                <AvatarFallback className="text-xs">{comment.user.initials}</AvatarFallback>
-              </Avatar>
-              <span className="text-xs font-medium">{comment.user.name}</span>
-              <span className="text-xs text-muted-foreground">•</span>
-              <span className="text-xs text-muted-foreground">{comment.time}</span>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </Card>
-  )
+
+  );
 }
 export default RecentComments;

@@ -21,6 +21,18 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(255),
       allowNull: false,
     },
+    gender: {
+      type: DataTypes.ENUM('male', 'female', 'other'),
+      allowNull: true,
+    },
+    birthday: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    avatar: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -62,6 +74,18 @@ module.exports = (sequelize, DataTypes) => {
   // Thêm method vào prototype
   User.prototype.validPassword = async function (password) {
     return await bcrypt.compare(password, this.password);
+  };
+  User.prototype.getProfileInfo = function() {
+    return {
+      userId: this.userId,
+      username: this.username,
+      email: this.email,
+      gender: this.gender,
+      birthday: this.birthday,
+      avatar: this.avatar,
+      joinDate: this.createdAt,
+      updatedAt: this.updatedAt
+    };
   };
 
   return User;

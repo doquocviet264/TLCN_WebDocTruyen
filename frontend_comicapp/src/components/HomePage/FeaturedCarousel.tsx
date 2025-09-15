@@ -1,47 +1,66 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import poster from "./poster.png";
+import axios from "axios";
+import { Link } from "react-router-dom";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// --- Các interface và component ComicCard giữ nguyên ---
 interface Comic {
   id: number;
+  slug: string;
   title: string;
-  chapter: string;
+  chapter: number;
   image: string;
 }
 
 interface ComicCardProps {
+  slug: string;
   title: string;
-  chapter: string;
+  chapter: number;
   imageUrl: string;
 }
 
-const ComicCard: React.FC<ComicCardProps> = ({ title, chapter, imageUrl }) => (
-  <div className="rounded-lg shadow-md overflow-hidden bg-card w-[190px]">
-    <img src={imageUrl} alt={title} className="w-full h-[280px] object-cover" />
-    <div className="p-2">
-      <h4 className="text-sm font-semibold truncate">{title}</h4>
-      <p className="text-xs text-muted-foreground">{chapter}</p>
+const ComicCard: React.FC<ComicCardProps> = ({ slug, title, chapter, imageUrl }) => (
+  <Link to={`/truyen-tranh/${slug}`} className="block w-[190px] h-[280px] rounded-lg shadow-md overflow-hidden relative group">
+    {/* Ảnh nền */}
+    <img 
+      src={imageUrl} 
+      alt={title} 
+      className="w-full h-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-110" 
+    />
+
+    {/* Lớp phủ Gradient */}
+    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+    
+    {/* Thông tin truyện */}
+    <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+      <h4 
+        className="font-bold text-base truncate transition-all duration-300 
+                   group-hover:whitespace-normal group-hover:line-clamp-2 group-hover:text-wrap"
+      >
+        {title}
+      </h4>
+      {/* Chương mới nhất */}
+      <p className="text-sm font-light">{formatNumber(chapter)}</p>
     </div>
-  </div>
+  </Link>
 );
-
-const featuredComics: Comic[] = [
-  { id: 1, title: "One Piece", chapter: "Chap 1125", image: poster },
-  { id: 2, title: "Jujutsu Kaisen", chapter: "Chap 265", image: poster },
-  { id: 3, title: "My Hero Academia", chapter: "Chap 432", image: poster },
-  { id: 4, title: "Solo Leveling", chapter: "Chap 179", image: poster },
-  { id: 5, title: "Attack on Titan", chapter: "Chap 139", image: poster },
-  { id: 6, title: "Naruto", chapter: "Chap 700", image: poster },
-  { id: 7, title: "Bleach", chapter: "Chap 686", image: poster },
-];
-
+  const formatNumber = (num: unknown) => {
+    const parsed = typeof num === "number" ? num : Number(num);
+    if (isNaN(parsed)||parsed === 0) return "mới";
+    return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
+  };
+//Component Carousel chính
 const TRANSITION_DURATION_MS = 500;
+export function FeaturedCarousel() {
+  const [comics, setComics] = useState<Comic[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const FeaturedCarousel: React.FC = () => {
-  const slideCount = featuredComics.length;
+  //Logic Carousel (giữ nguyên, chỉ đổi tên biến)
+  const slideCount = comics.length;
   const clonedComics = useMemo(() => {
-    return [...featuredComics, ...featuredComics, ...featuredComics];
-  }, []);
+    if (slideCount === 0) return [];
+    return [...comics, ...comics, ...comics];
+  }, [comics]);
   const initialIndex = slideCount;
 
   const [currentIndex, setCurrentIndex] = useState<number>(initialIndex);
@@ -50,7 +69,6 @@ const FeaturedCarousel: React.FC = () => {
 
   const ITEM_WIDTH = 190 + 16; // 190px width + 16px (mx-2)
 
-  // --- Hàm di chuyển ---
   const goToNext = (): void => {
     if (!isTransitioning) return;
     setCurrentIndex((prevIndex) => prevIndex + 1);
@@ -61,27 +79,34 @@ const FeaturedCarousel: React.FC = () => {
     setCurrentIndex((prevIndex) => prevIndex - 1);
   };
 
-  // --- Hook để tự động di chuyển ---
+  // --- Fetch dữ liệu từ API ---
   useEffect(() => {
-    if (!isTransitioning) return; // Không tự động chạy khi đang reset vị trí
-
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-
-    timeoutRef.current = setTimeout(() => {
-      goToNext();
-    }, 2000);
-
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+    const fetchFeaturedComics = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get<Comic[]>("http://localhost:3000/api/comics/featured");
+        setComics(response.data);
+        // Reset currentIndex về vị trí bắt đầu khi có dữ liệu mới
+        setCurrentIndex(response.data.length);
+      } catch (error) {
+        console.error("Failed to fetch featured comics:", error);
+      } finally {
+        setLoading(false);
       }
     };
-  }, [currentIndex, isTransitioning]);
+    fetchFeaturedComics();
+  }, []);
 
-  // --- Hook xử lý hiệu ứng lặp vô tận ---
+  // --- Các hook xử lý logic carousel (giữ nguyên) ---
   useEffect(() => {
+    if (!isTransitioning || slideCount === 0) return;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(goToNext, 3000); // Tăng thời gian chờ lên 3s
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [currentIndex, isTransitioning, slideCount]);
+
+  useEffect(() => {
+    if (slideCount === 0) return;
     if (currentIndex === initialIndex + slideCount) {
       const timer = setTimeout(() => {
         setIsTransitioning(false);
@@ -89,7 +114,6 @@ const FeaturedCarousel: React.FC = () => {
       }, TRANSITION_DURATION_MS);
       return () => clearTimeout(timer);
     }
-
     if (currentIndex === initialIndex - 1) {
       const timer = setTimeout(() => {
         setIsTransitioning(false);
@@ -97,54 +121,67 @@ const FeaturedCarousel: React.FC = () => {
       }, TRANSITION_DURATION_MS);
       return () => clearTimeout(timer);
     }
-
     if (!isTransitioning) {
-      const enableTransitionTimer = setTimeout(() => {
-        setIsTransitioning(true);
-      }, 50);
-      return () => clearTimeout(enableTransitionTimer);
+      const timer = setTimeout(() => setIsTransitioning(true), 50);
+      return () => clearTimeout(timer);
     }
   }, [currentIndex, initialIndex, slideCount, isTransitioning]);
 
-  if (clonedComics.length === 0) {
-    return null;
+  if (loading) {
+    return (
+      <div className="w-full px-4 sm:px-6 lg:px-8">
+        <Skeleton className="h-8 w-48 mb-4" />
+        <div className="flex gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="w-[190px] h-[280px] rounded-lg flex-shrink-0" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
-  return (
-    <div className="relative overflow-hidden w-full group">
-      <div
-        className={`flex ease-in-out ${isTransitioning ? 'transition-transform duration-500' : 'transition-none'}`}
-        style={{ transform: `translateX(-${currentIndex * ITEM_WIDTH}px)` }}
-      >
-        {clonedComics.map((comic, index) => (
-          <div key={`${comic.id}-${index}`} className="mx-2 flex-shrink-0">
-            <ComicCard
-              title={comic.title}
-              chapter={comic.chapter}
-              imageUrl={comic.image}
-            />
-          </div>
-        ))}
-      </div>
+  if (comics.length === 0) return null;
 
-      <button
-        onClick={goToPrevious}
-        className="absolute top-1/2 left-2 -translate-y-1/2 bg-black bg-opacity-30 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-opacity-50"
-        aria-label="Previous slide"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-      <button
-        onClick={goToNext}
-        className="absolute top-1/2 right-2 -translate-y-1/2 bg-black bg-opacity-30 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-opacity-50"
-        aria-label="Next slide"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
+  return (
+    <div className="w-full px-4 sm:px-6 lg:px-8">
+      {/* Tiêu đề */}
+      <h2 className="text-2xl sm:text-3xl font-montserrat font-bold text-foreground mb-4">
+        Truyện Đề Cử
+      </h2>
+      <div className="relative overflow-hidden group/carousel">
+        {/* Slider */}
+        <div
+          className={`flex ${isTransitioning ? 'transition-transform duration-500 ease-in-out' : 'transition-none'}`}
+          style={{ transform: `translateX(-${currentIndex * ITEM_WIDTH}px)` }}
+        >
+          {clonedComics.map((comic, index) => (
+            <div key={`${comic.id}-${index}`} className="mx-2 flex-shrink-0">
+              <ComicCard
+                slug={comic.slug}
+                title={comic.title}
+                chapter={comic.chapter}
+                imageUrl={comic.image}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Nút điều khiển */}
+        <button
+          onClick={goToPrevious}
+          className="absolute top-1/2 left-2 -translate-y-1/2 bg-black/30 text-white p-2 rounded-full opacity-0 group-hover/carousel:opacity-100 transition-opacity z-10 hover:bg-black/50"
+          aria-label="Previous slide"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+        <button
+          onClick={goToNext}
+          className="absolute top-1/2 right-2 -translate-y-1/2 bg-black/30 text-white p-2 rounded-full opacity-0 group-hover/carousel:opacity-100 transition-opacity z-10 hover:bg-black/50"
+          aria-label="Next slide"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
+      </div>
     </div>
   );
 };

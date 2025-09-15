@@ -1,4 +1,3 @@
-// models/Comment.js
 module.exports = (sequelize, DataTypes) => {
     const Comment = sequelize.define("Comment", {
         commentId: {

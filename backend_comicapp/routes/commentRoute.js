@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { getCommentsByComic, createComment, toggleLikeComment } = require('../controllers/commentController.js');
+const { getCommentsByComic, createComment, toggleLikeComment, getRecentComments } = require('../controllers/commentController.js');
 const { protect, optionalAuth } = require('../middleware/authMiddleware.js');
 
+// lấy các bình luận mới nhất
+router.get('/recent', getRecentComments);
 // Lấy comments của một truyện (có thể xem khi chưa đăng nhập)
 router.get('/comic/:slug', optionalAuth, getCommentsByComic);
 

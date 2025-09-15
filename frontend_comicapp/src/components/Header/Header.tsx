@@ -55,7 +55,11 @@ export function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>Tài khoản</DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/profile">
+                    Tài khoản
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={logout}>Đăng xuất</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
