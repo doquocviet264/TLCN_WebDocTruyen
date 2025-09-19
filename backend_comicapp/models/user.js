@@ -33,6 +33,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(500),
       allowNull: true,
     },
+    coins: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0, // số vàng mặc định
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,

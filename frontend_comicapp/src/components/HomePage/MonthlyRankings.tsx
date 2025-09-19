@@ -1,4 +1,3 @@
-// src/components/MonthlyRankings.tsx
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
@@ -36,7 +35,6 @@ const RankingItemSkeleton = () => (
     </div>
   </div>
 );
-
 // --- Component Chính ---
 export function MonthlyRankings() {
   const [rankings, setRankings] = useState<RankingsData | null>(null);
@@ -46,7 +44,7 @@ export function MonthlyRankings() {
     const fetchRankings = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<RankingsData>("http://localhost:3000/api/comics/rankings");
+        const response = await axios.get<RankingsData>(`${import.meta.env.VITE_API_URL}/comics/rankings`);
         setRankings(response.data);
       } catch (error) {
         console.error("Failed to fetch rankings:", error);
@@ -63,7 +61,7 @@ export function MonthlyRankings() {
     }
 
     return comics.map((comic) => (
-      <Link key={comic.id} to={`/truyen/${comic.slug}`} className="block group">
+      <Link key={comic.id} to={`/truyen-tranh/${comic.slug}`} className="block group">
         <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors duration-200">
           {/* Ảnh bìa */}
           <img
@@ -87,7 +85,7 @@ export function MonthlyRankings() {
               </div>
               <div className="flex items-center" title="Chương mới">
                 <BookOpen className="w-3 h-3 text-green-500 mr-1" />
-                <span>{comic.latestChapter.replace('Chap ', '')}</span>
+                <span>{comic.latestChapter}</span>
               </div>
             </div>
           </div>

@@ -12,7 +12,6 @@ import { ProfileGoldTab } from "../components/ProfilePage/GoldTab";
 import { ProfileSettingsTab } from "../components/ProfilePage/SettingsTab";
 import { UserProfile, Comic, Transaction, Quest } from "../components/ProfilePage/types";
 
-// Type dữ liệu API
 interface ApiUserResponse {
   userId: number;
   username: string;
@@ -41,8 +40,7 @@ export default function ProfilePage() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    // Dùng generic <ApiUserResponse> để TypeScript biết type res.data
-    axios.get<ApiUserResponse>("http://localhost:3000/api/user/profile", {
+    axios.get<ApiUserResponse>(`${import.meta.env.VITE_API_URL}/user/profile`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(res => {
@@ -54,11 +52,11 @@ export default function ProfilePage() {
         gender: apiUser.gender,
         birthday: apiUser.birthday ?? "1970-01-01",
         avatar: apiUser.avatar || "/diverse-user-avatars.png",
-        joinDate: apiUser.joinDate,
+        joinDate: apiUser.joinDate ?? "1970-01-01",
         totalRead: apiUser.totalRead ?? 0,
         favorites: apiUser.favorites ?? 0,
         comments: apiUser.comments ?? 0,
-        ...mockDefaults, // các thuộc tính mock luôn có
+        ...mockDefaults,
       };
 
       setUser(mergedUser);

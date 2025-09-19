@@ -11,6 +11,20 @@ module.exports = (sequelize, DataTypes) => {
     },
     title: { 
       type: DataTypes.STRING 
+    },
+    views: { 
+      type: DataTypes.INTEGER, 
+      defaultValue: 0,       // mặc định chưa xem
+      allowNull: false
+    },
+    cost:{
+      type: DataTypes.INTEGER, 
+      defaultValue: 1,
+    },
+    isLocked: { 
+      type: DataTypes.BOOLEAN, 
+      defaultValue: false,   // false = chương miễn phí, true = trả phí
+      allowNull: false
     }
   }, {
     tableName: 'Chapters',

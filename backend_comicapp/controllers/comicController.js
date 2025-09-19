@@ -22,10 +22,9 @@ const getComicDetails = async (req, res) => {
                 },
                 {
                     model: Chapter,
-                    attributes: ['chapterNumber', 'title', 'createdAt'],
+                    attributes: ['chapterId', 'chapterNumber', 'title', 'views', 'isLocked', 'updatedAt'],
                     separate: true,    
                     order: [['chapterNumber', 'DESC']],
-                    limit: 100
                 }
             ]
         });
@@ -58,9 +57,12 @@ const getComicDetails = async (req, res) => {
             followers: followerCount,
             isFollowing: isFollowing,
             chapters: comic.Chapters.map(c => ({
+                id: c.chapterId,
                 number: c.chapterNumber,
                 title: c.title,
-                time: c.createdAt 
+                views: c.views,
+                isLocked: c.isLocked,
+                time: c.updatedAt
             }))
         };
 
@@ -198,7 +200,7 @@ const getRankings = async (req, res) => {
                     'comicId', 'title', 'slug', 'createdAt',
                     [sequelize.col('coverImage'), 'image'],
                     [sequelize.literal('(SELECT COUNT(*) FROM ComicFollows WHERE ComicFollows.comicId = Comic.comicId)'), 'followerCount'],
-                    [sequelize.literal('(SELECT COUNT(*) FROM Chapters WHERE Chapters.comicId = Comic.comicId)'), 'viewCount'], // Giả định viewCount dựa trên số chương
+                    [sequelize.literal('(SELECT COUNT(*) FROM Chapters WHERE Chapters.comicId = Comic.comicId)'), 'viewCount'],
                     [sequelize.literal('(SELECT AVG(score) FROM ComicRatings WHERE ComicRatings.comicId = Comic.comicId)'), 'rating']
                 ],
                 include: [{
@@ -220,18 +222,25 @@ const getRankings = async (req, res) => {
         ]);
 
         // --- Hàm helper để định dạng dữ liệu ---
-        const formatData = (comics) => comics.map((comic, index) => ({
-            id: comic.comicId,
-            rank: index + 1,
-            slug: comic.slug,
-            title: comic.title,
-            image: comic.dataValues.image,
-            rating: comic.get('rating') ? parseFloat(comic.get('rating')).toFixed(1) : '0',
-            views: parseInt(comic.get('viewCount') || 0, 10),
-            latestChapter: comic.Chapters.length > 0 ? `Chap ${comic.Chapters[0].chapterNumber}` : 'N/A',
-            // trend có thể được tính toán phức tạp hơn, ở đây ta để mặc định
-            trend: 'same' 
-        }));
+        const formatData = (comics) => comics.map((comic, index) => {
+            const lastChapterNumber = comic.Chapters.length > 0
+                ? Number(comic.Chapters[0].chapterNumber) // tự động bỏ .00
+                : null;
+
+            return {
+                id: comic.comicId,
+                rank: index + 1,
+                slug: comic.slug,
+                title: comic.title,
+                image: comic.dataValues.image,
+                rating: comic.get('rating') ? parseFloat(comic.get('rating')).toFixed(1) : '0',
+                views: parseInt(comic.get('viewCount') || 0, 10),
+                latestChapter: lastChapterNumber !== null
+                    ? `Chương ${lastChapterNumber}`
+                    : 'N/A',
+                trend: 'same'
+            };
+        });
 
         res.json({
             top: formatData(topComics),
@@ -244,34 +253,46 @@ const getRankings = async (req, res) => {
         res.status(500).json({ message: "Lỗi máy chủ" });
     }
 };
+
 // Hàm lấy dữ liệu cho các mục ở trang chủ
 const getHomepageSections = async (req, res) => {
     try {
         const limit = 10; // Số truyện mỗi mục
 
         // --- Hàm helper để tái sử dụng query lấy truyện ---
-        const fetchComicsForSection = (options = {}) => {
-            return Comic.findAll({
+        const fetchComicsForSection = async (options = {}) => {
+            const comics = await Comic.findAll({
                 limit,
-                attributes: ['comicId', 'title', 'slug', [sequelize.col('coverImage'), 'image']],
-                include: [{
-                    model: Chapter,
-                    attributes: ['chapterNumber'],
-                    order: [['chapterNumber', 'DESC']],
-                    limit: 1,
-                    separate: true,
-                }],
+                attributes: ['comicId', 'title', 'slug', 'coverImage'],
+                include: [
+                    {
+                        model: Chapter,
+                        attributes: ['chapterNumber'],
+                        order: [['chapterNumber', 'DESC']],
+                        limit: 1,
+                        separate: true,
+                    }
+                ],
                 ...options
             });
+
+            // Map lại dữ liệu để chỉ lấy lastChapter
+            return comics.map(c => ({
+                comicId: c.comicId,
+                title: c.title,
+                slug: c.slug,
+                image: c.coverImage,
+                lastChapter: c.Chapters?.[0]?.chapterNumber || null
+            }));
         };
 
-        // 1. Lấy 3 thể loại ngẫu nhiên
+        //Lấy 3 thể loại ngẫu nhiên
         const randomGenres = await Genre.findAll({
             order: sequelize.random(),
             limit: 3
         });
 
-        // 2. Lấy truyện cho từng thể loại ngẫu nhiên
+        //Lấy truyện cho từng thể loại ngẫu nhiên
         const genreSectionsPromises = randomGenres.map(genre => 
             fetchComicsForSection({
                 include: [
@@ -281,7 +302,7 @@ const getHomepageSections = async (req, res) => {
             }).then(comics => ({ genre, comics })) // Gói cả genre và comics lại
         );
         
-        // 3. Lấy truyện đã hoàn thành
+        //Lấy truyện đã hoàn thành
         const completedSectionPromise = fetchComicsForSection({
             where: { status: 'Completed' },
             order: [['updatedAt', 'DESC']]
@@ -290,7 +311,7 @@ const getHomepageSections = async (req, res) => {
             comics
         }));
 
-        // 4. Lấy truyện ngẫu nhiên
+        //Lấy truyện ngẫu nhiên
         const randomSectionPromise = fetchComicsForSection({
             order: sequelize.random()
         }).then(comics => ({
@@ -318,11 +339,44 @@ const getHomepageSections = async (req, res) => {
 };
 
 
+
+const getComicDetailForHistory = async (req, res) => {
+    try {
+        const { comicId } = req.params; // Lấy id từ params
+        const userId = req.user ? req.user.userId : null;
+
+        const comic = await Comic.findOne({
+            where: { comicId }, // Tìm bằng id
+            attributes: [
+                'title', 'slug', 
+                [sequelize.literal('coverImage'), 'image'],
+            ],
+        });
+
+        if (!comic) {
+            return res.status(404).json({ message: 'Không tìm thấy truyện' });
+        }
+        
+
+        const responseData = {
+            slug: comic.slug,
+            title: comic.title,
+            image: comic.dataValues.image,
+        };
+
+        res.json(responseData);
+    } catch (error) {
+        console.error("Lỗi khi lấy thông tin truyện cho lịch sử: ",error);
+        res.status(500).json({ message: 'Lỗi máy chủ' });
+    }
+};
+
 module.exports = {
     getComicDetails,
     toggleFollow,
     getNewlyUpdatedComics,
     getFeaturedComics,
     getRankings,
-    getHomepageSections
+    getHomepageSections,
+    getComicDetailForHistory
 };

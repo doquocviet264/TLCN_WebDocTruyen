@@ -6,6 +6,8 @@ const comicRoutes = require('./routes/comicRoute');
 const commentRoutes = require('./routes/commentRoute');
 const ratingRoutes = require('./routes/ratingRoute');
 const userRoute = require('./routes/userRoute');
+const chapterRoute = require('./routes/chapterRoute');
+const historyRoute = require('./routes/historyRoute');
 const cors = require('cors');
 dotenv.config();
 
@@ -19,6 +21,8 @@ app.use('/api/comics', comicRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/user', userRoute);
+app.use('/api/chapter', chapterRoute);
+app.use('/api/history', historyRoute);
 // Xử lý lỗi 404
 app.use((req, res) => {
   res.status(404).json({ message: 'Không tìm thấy endpoint' });

@@ -1,5 +1,5 @@
 import React, { useState, useContext } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useNavigate, useLocation , Link } from "react-router-dom"
 import { Eye, EyeOff, Mail, Lock } from "lucide-react"
 import { toast } from "react-toastify";
 import { AuthContext } from "@/context/AuthContext";
@@ -9,12 +9,14 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 
 export default function LoginPage() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useContext(AuthContext)
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({ email: "", password: "" })
   const [isLoading, setIsLoading] = useState(false)
-
+  const searchParams = new URLSearchParams(location.search);
+  const redirectUrl = searchParams.get("redirect") || "/";
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setIsLoading(true);
@@ -37,7 +39,7 @@ export default function LoginPage() {
       // Lưu token vào localStorage hoặc context
       login(data.token); 
       toast.success("Đăng nhập thành công");
-      navigate("/"); // Điều hướng sau khi login thành công
+      navigate(redirectUrl, { replace: true }); // Điều hướng sau khi login thành công
     }
   } catch (error) {
     console.error(error);

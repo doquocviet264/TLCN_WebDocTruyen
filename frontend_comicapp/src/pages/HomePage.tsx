@@ -28,7 +28,7 @@ const HomePage: React.FC = () => {
     const fetchHomepageSections = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<HomepageSectionsData>("http://localhost:3000/api/comics/homepage-sections");
+        const response = await axios.get<HomepageSectionsData>(`${import.meta.env.VITE_API_URL}/comics/homepage-sections`);
         setSectionsData(response.data);
       } catch (error) {
         console.error("Failed to fetch homepage sections:", error);

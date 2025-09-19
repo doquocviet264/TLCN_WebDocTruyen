@@ -1,19 +1,16 @@
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight } from "lucide-react"; // 👈 icon
+import { ChevronLeft, ChevronRight } from "lucide-react"; 
 import { useRef } from "react";
 
 // --- Interfaces ---
-interface Chapter {
-  chapterNumber: number;
-}
 interface Comic {
   id?: string;
   comicId?: string;
   slug: string;
   title: string;
   image: string;
-  Chapters: Chapter[];
+  lastChapter?: number | null; 
 }
 
 interface ComicRowProps {
@@ -21,7 +18,11 @@ interface ComicRowProps {
   comics: Comic[];
   isLoading?: boolean;
 }
-
+const formatNumber = (num: unknown) => {
+    const parsed = typeof num === "number" ? num : Number(num);
+    if (isNaN(parsed)||parsed === 0) return "mới";
+    return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
+  };
 // --- Component Card cho mỗi truyện trong hàng ---
 const ComicRowCard = ({ comic }: { comic: Comic }) => (
   <Link to={`/truyen-tranh/${comic.slug}`} className="block w-40 flex-shrink-0 group">
@@ -40,7 +41,7 @@ const ComicRowCard = ({ comic }: { comic: Comic }) => (
           {comic.title}
         </h4>
         <p className="text-xs font-light">
-          {comic.Chapters.length > 0 ? `Chap ${comic.Chapters[0].chapterNumber}` : "Mới"}
+          {comic.lastChapter ? `Chap ${formatNumber(comic.lastChapter)}` : "Mới"}
         </p>
       </div>
     </div>
@@ -65,7 +66,7 @@ export function ComicRow({ title, comics, isLoading }: ComicRowProps) {
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
-      const amount = 300; // px scroll mỗi lần
+      const amount = 300;
       scrollRef.current.scrollBy({
         left: direction === "left" ? -amount : amount,
         behavior: "smooth",
@@ -78,7 +79,7 @@ export function ComicRow({ title, comics, isLoading }: ComicRowProps) {
   }
 
   if (!comics || comics.length === 0) {
-    return null; // Không hiển thị gì nếu không có truyện
+    return null;
   }
 
   return (

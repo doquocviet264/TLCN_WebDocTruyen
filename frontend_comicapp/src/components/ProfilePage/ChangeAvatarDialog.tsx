@@ -41,7 +41,7 @@ export function ChangeAvatarDialog({ open, onOpenChange, onUpdate }: ChangeAvata
       const formData = new FormData()
       formData.append('avatar', selectedFile)
       
-      const response = await fetch('http://localhost:3000/api/user/avatar', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/user/avatar`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`

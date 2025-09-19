@@ -1,8 +1,9 @@
+// syncComics.js
 const axios = require('axios');
 const db = require('./models/index');
 
+// === CÁC HÀM HỖ TRỢ ===
 
-//hàm chuyển đổi trạng thái cho phù hợp với db
 const mapStatus = (apiStatus) => {
     switch (apiStatus) {
         case 'ongoing': return 'In Progress';
@@ -11,10 +12,6 @@ const mapStatus = (apiStatus) => {
     }
 };
 
-const getChapterPage = async (apiChapter) =>{
-    
-}
-//hàm tìm nếu không có thì tạo thể loại
 const findOrCreateGenres = async (apiCategories) => {
     const genreInstances = [];
     for (const category of apiCategories) {
@@ -41,51 +38,89 @@ const getComicDetails = async (slug) => {
     }
 };
 
-// hàm thêm chapter
+/**
+ * Lấy danh sách URL ảnh của một chương từ API
+ */
+const getChapterPages = async (chapterApiUrl) => {
+    try {
+        const response = await axios.get(chapterApiUrl);
+        if (response.data.status === 'success' && response.data.data && response.data.data.item) {
+            const { domain_cdn, item } = response.data.data;
+            const { chapter_path, chapter_image } = item;
+            
+            // Tạo URL đầy đủ cho từng ảnh
+            const imagesWithFullUrl = chapter_image.map(image => ({
+                image_page: image.image_page,
+                image_url: `${domain_cdn}/${chapter_path}/${image.image_file}`
+            }));
+            
+            return imagesWithFullUrl;
+        }
+        return [];
+    } catch (error) {
+        console.warn(`    - ↳ ⚠️ Lỗi khi lấy ảnh chương: ${error.message}`);
+        return [];
+    }
+};
+
+/**
+ * [CẬP NHẬT] Hàm đồng bộ chương, giờ chỉ crawl URL ảnh
+ */
 const syncChaptersForComic = async (comicInstance, apiChapters, transaction) => {
     if (!apiChapters || apiChapters.length === 0) {
-        return { created: 0, updated: 0 };
+        return { created: 0, updated: 0, images: 0 };
     }
     
     let createdCount = 0;
     let updatedCount = 0;
+    let totalImagesSaved = 0;
 
     const allChaptersData = apiChapters.flatMap(server => server.server_data || []);
 
     for (const chapterData of allChaptersData) {
         const chapterNumber = parseFloat(chapterData.chapter_name);
-        if (isNaN(chapterNumber)) {
-            continue;
-        }
+        if (isNaN(chapterNumber)) continue;
 
         const chapterRecord = {
-            chapterNumber: chapterNumber,
+            chapterNumber,
             title: chapterData.chapter_title || `Chương ${chapterData.chapter_name}`,
-            comicId: comicInstance.comicId
+            comicId: comicInstance.comicId,
         };
         
         const [chapterInstance, created] = await db.Chapter.findOrCreate({
-            where: { 
-                comicId: comicInstance.comicId,
-                chapterNumber: chapterRecord.chapterNumber
-            },
+            where: { comicId: comicInstance.comicId, chapterNumber },
             defaults: chapterRecord,
             transaction
         });
 
-        if (created) {
-            createdCount++;
-        } else {
-            await chapterInstance.update(chapterRecord, { transaction });
-            updatedCount++;
+        if (created) createdCount++;
+        else updatedCount++;
+
+        // Crawl và lưu URL ảnh cho chương
+        const existingImagesCount = await chapterInstance.countChapterImages({ transaction });
+        if (existingImagesCount === 0) { // Chỉ crawl nếu chương chưa có ảnh
+            console.log(`    - ↳ Đang crawl URL ảnh cho chương ${chapterNumber}...`);
+            const chapterImages = await getChapterPages(chapterData.chapter_api_data);
+
+            // Sử dụng bulkCreate để tăng hiệu năng khi insert nhiều ảnh
+            const imageRecords = chapterImages.map(image => ({
+                chapterId: chapterInstance.chapterId,
+                imageUrl: image.image_url,
+                pageNumber: image.image_page,
+            }));
+
+            if (imageRecords.length > 0) {
+                await db.ChapterImage.bulkCreate(imageRecords, { transaction });
+                totalImagesSaved += imageRecords.length;
+            }
+            await new Promise(resolve => setTimeout(resolve, 200)); // Nghỉ nhẹ sau khi crawl 1 chương
         }
     }
-    return { created: createdCount, updated: updatedCount };
+    return { created: createdCount, updated: updatedCount, images: totalImagesSaved };
 };
 
 
-// hàm chính
-
+// === HÀM CHÍNH ===
 const syncComicsFromPage = async (page = 1) => {
     try {
         console.log(`🚀 Bắt đầu lấy danh sách truyện từ trang ${page}...`);
@@ -99,17 +134,16 @@ const syncComicsFromPage = async (page = 1) => {
         }
 
         const comicsFromApi = data.data.items;
-        const cdnImageDomain = data.data.APP_DOMAIN_CDN_IMAGE;
         
         for (const comicListItem of comicsFromApi) {
             console.log(`\n--------------------------------------------------`);
-            console.log(`Đang xử lý truyện: ${comicListItem.name}`);
+            console.log(`- Đang xử lý truyện: ${comicListItem.name}`);
             
             const comicDetail = await getComicDetails(comicListItem.slug);
             await new Promise(resolve => setTimeout(resolve, 300));
 
             if (!comicDetail) {
-                console.warn(`Bỏ qua do không lấy được chi tiết.`);
+                console.warn(`- ⚠️ Bỏ qua do không lấy được chi tiết.`);
                 continue;
             }
 
@@ -119,7 +153,7 @@ const syncComicsFromPage = async (page = 1) => {
                     title: comicDetail.name,
                     slug: comicDetail.slug,
                     status: mapStatus(comicDetail.status),
-                    coverImage: `${cdnImageDomain}/uploads/comics/${comicDetail.thumb_url}`,
+                    coverImage: `${data.data.APP_DOMAIN_CDN_IMAGE}/uploads/comics/${comicDetail.thumb_url}`,
                     author: comicDetail.author.join(', ') || 'Đang cập nhật',
                     description: comicDetail.content || '',
                     updatedAt: new Date(comicDetail.updatedAt)
@@ -143,32 +177,32 @@ const syncComicsFromPage = async (page = 1) => {
                 const chapterSyncResult = await syncChaptersForComic(comicInstance, comicDetail.chapters, transaction);
 
                 await transaction.commit();
-                console.log(`Truyện: ${created ? 'Đã thêm mới' : 'Đã cập nhật'} "${comicInstance.title}"`);
-                console.log(`Chương: Thêm mới ${chapterSyncResult.created}, Cập nhật ${chapterSyncResult.updated}.`);
-
+                console.log(`  - Truyện: ${created ? '🎨 Đã thêm mới' : '🔄 Đã cập nhật'} "${comicInstance.title}"`);
+                console.log(`  - Chương: Thêm mới ${chapterSyncResult.created}, Cập nhật ${chapterSyncResult.updated}.`);
+                if (chapterSyncResult.images > 0) {
+                    console.log(`  - 🏞️  URL Ảnh: Đã lưu ${chapterSyncResult.images} URL mới.`);
+                }
             } catch (error) {
                 await transaction.rollback();
-                console.error(`Lỗi khi lưu truyện "${comicListItem.name}":`, error.message);
+                console.error(`  - ❌ Lỗi khi lưu truyện "${comicListItem.name}":`, error.message);
             }
         }
         
-        console.log(`\nHoàn tất xử lý trang ${page}.`);
+        console.log(`\n✅ Hoàn tất xử lý trang ${page}.`);
         return comicsFromApi.length;
 
     } catch (error) {
-        console.error(`Không thể lấy danh sách truyện từ API cho trang ${page}:`, error.message);
+        console.error(`❌ Không thể lấy danh sách truyện từ API cho trang ${page}:`, error.message);
         throw error;
     }
 };
 
-
-
-//hàm chạy file
+// === HÀM KHỞI ĐỘNG SCRIPT ===
 const runSync = async () => {
     const startPage = 2;
-    const endPage = 4;
+    const endPage = 3; // Ví dụ: lấy 2 trang
 
-    console.log(`Bắt đầu quá trình đồng bộ từ trang ${startPage} đến ${endPage}.`);
+    console.log(`🔥 Bắt đầu quá trình đồng bộ từ trang ${startPage} đến ${endPage}.`);
     
     await db.sequelize.authenticate();
     console.log('Kết nối database thành công.');
@@ -182,7 +216,7 @@ const runSync = async () => {
         }
     }
 
-    console.log('Quá trình đồng bộ đã kết thúc.');
+    console.log('🏁 Quá trình đồng bộ đã kết thúc.');
 };
 
 runSync().catch(error => {

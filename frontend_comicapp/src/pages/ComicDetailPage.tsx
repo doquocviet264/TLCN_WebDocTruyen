@@ -11,8 +11,11 @@ import { toast } from "react-toastify";
 
 // Định nghĩa kiểu dữ liệu cho toàn bộ comic detail
 interface Chapter {
+  id:number;
   number: number;
   title: string;
+  views: number;
+  isLocked: boolean;
   time: string;
 }
 
@@ -144,33 +147,18 @@ export default function ComicDetailPage() {
   if (!comic) return <div className="container py-6 text-center">Không tìm thấy truyện.</div>;
 
   return (
-    // <div className="min-h-screen flex flex-col">
-
-    //   <main className="flex-1 container px-4 py-6">
-    //     <div className="space-y-8">
-    //       <ComicHeader comic={comic} onFollowToggle={handleFollowToggle} />
-    //       <ComicDescription description={comic.description} />
-    //       <ChapterList chapters={comic.chapters} comicSlug={comic.slug} />
-    //       <CommentSection comicId={comic.id.toString()} comicSlug={comic.slug}/>
-    //     </div>
-    //   </main>
-
-    // </div>
     <div className="min-h-screen flex flex-col">
       <main className="flex-1 container px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-11 gap-8">
-          {/* Cột chính bên trái */}
           <div className="lg:col-span-7 space-y-8">
             <ComicHeader comic={comic} onFollowToggle={handleFollowToggle} />
             <ComicDescription description={comic.description} />
             <ChapterList chapters={comic.chapters} comicSlug={comic.slug} />
             <CommentSection comicId={comic.id.toString()} comicSlug={comic.slug}/>
           </div>
-
-          {/* Sidebar bên phải */}
           <div className="lg:col-span-4 space-y-8">
             <RatingWidget comicId={comic.id}  /> 
-            <RelatedComics relatedComics={sampleRelatedComics} /> {/* Danh sách truyện liên quan */}
+            <RelatedComics relatedComics={sampleRelatedComics} />
           </div>
         </div>
       </main>

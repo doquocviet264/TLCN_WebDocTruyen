@@ -84,7 +84,7 @@ export function FeaturedCarousel() {
     const fetchFeaturedComics = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<Comic[]>("http://localhost:3000/api/comics/featured");
+        const response = await axios.get<Comic[]>(`${import.meta.env.VITE_API_URL}/comics/featured`);
         setComics(response.data);
         // Reset currentIndex về vị trí bắt đầu khi có dữ liệu mới
         setCurrentIndex(response.data.length);

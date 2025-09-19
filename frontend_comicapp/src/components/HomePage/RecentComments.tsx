@@ -45,7 +45,7 @@ export function RecentComments() {
     const fetchRecentComments = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<Comment[]>("http://localhost:3000/api/comments/recent");
+        const response = await axios.get<Comment[]>(`${import.meta.env.VITE_API_URL}/comments/recent`);
         setComments(response.data);
       } catch (error) {
         console.error("Failed to fetch recent comments:", error);

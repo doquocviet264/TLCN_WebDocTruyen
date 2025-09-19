@@ -13,7 +13,7 @@ const protect = async (req, res, next) => {
       req.user = await User.findByPk(userId, { attributes: { exclude: ['password'] } });
 
       if (!req.user) {
-        return res.status(401).json({ message: "User not found" });
+        return res.status(401).json({ message: "Không tìm thấy người dùng" });
       }
 
       next();
@@ -24,7 +24,7 @@ const protect = async (req, res, next) => {
   }
 
   if (!token) {
-    return res.status(401).json({ message: "Not authorized, no token" });
+    return res.status(401).json({ message: "Không có token" });
   }
 };
 

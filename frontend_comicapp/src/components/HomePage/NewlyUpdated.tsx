@@ -46,7 +46,7 @@ export function NewlyUpdated() {
     const fetchNewlyUpdatedComics = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<Comic[]>("http://localhost:3000/api/comics/newly-updated");
+        const response = await axios.get<Comic[]>(`${import.meta.env.VITE_API_URL}/comics/newly-updated`);
         setComics(response.data);
       } catch (err) {
         setError("Không thể tải danh sách truyện. Vui lòng thử lại sau.");
@@ -106,12 +106,11 @@ export function NewlyUpdated() {
                 className="overflow-hidden rounded-lg bg-card/90 backdrop-blur-sm border border-border/40 hover:shadow-lg transition-all duration-300 flex flex-col h-full"
                 style={{ padding: 0 }}
               >
-                <div className="relative w-full" style={{ paddingTop: "150%", overflow: "hidden" }}>
+                <div className="relative w-full" style={{ paddingTop: "110%", overflow: "hidden" }}>
                   <img
                     src={comic.image || "/placeholder.svg"}
                     alt={comic.title}
-                    className="absolute inset-0 w-full h-full object-cover rounded-t-lg transition-transform duration-300 group-hover:scale-105"
-                    style={{ top: 0, left: 0 }}
+                    className="absolute inset-0 w-full h-full object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 rounded-t-lg bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>
@@ -145,9 +144,12 @@ export function NewlyUpdated() {
                   <div className="space-y-1 pt-1 border-t border-border/30">
                     {(comic.Chapters || []).slice(0, 3).map((chapter) => (
                       <div key={chapter.chapterNumber} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground hover:text-primary transition-colors truncate max-w-[90px]">
+                        <Link 
+                          to={`/truyen-tranh/${comic.slug}/chapter/${formatNumber(chapter.chapterNumber)}`}
+                          className="text-muted-foreground hover:text-primary transition-colors truncate max-w-[90px]"
+                        >
                           Chương {formatNumber(chapter.chapterNumber)}
-                        </span>
+                        </Link>
                         <div className="flex items-center space-x-1 text-muted-foreground flex-shrink-0">
                           <Clock className="h-3 w-3" />
                           <span>{timeAgo(chapter.time)}</span>
