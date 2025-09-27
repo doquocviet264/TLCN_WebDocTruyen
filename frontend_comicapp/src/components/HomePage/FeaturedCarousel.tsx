@@ -19,7 +19,12 @@ interface ComicCardProps {
   imageUrl: string;
 }
 
-const ComicCard: React.FC<ComicCardProps> = ({ slug, title, chapter, imageUrl }) => (
+const formatNumber = (num: unknown) => {
+    const parsed = typeof num === "number" ? num : Number(num);
+    if (isNaN(parsed)||parsed === 0) return "mới";
+    return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
+};
+const ComicCard = ({ slug, title, chapter, imageUrl }: ComicCardProps) => (
   <Link to={`/truyen-tranh/${slug}`} className="block w-[190px] h-[280px] rounded-lg shadow-md overflow-hidden relative group">
     {/* Ảnh nền */}
     <img 
@@ -40,18 +45,14 @@ const ComicCard: React.FC<ComicCardProps> = ({ slug, title, chapter, imageUrl })
         {title}
       </h4>
       {/* Chương mới nhất */}
-      <p className="text-sm font-light">{formatNumber(chapter)}</p>
+      <p className="text-sm font-light">{chapter ? `Chap ${formatNumber(chapter)}` : "Mới"}</p>
     </div>
   </Link>
 );
-  const formatNumber = (num: unknown) => {
-    const parsed = typeof num === "number" ? num : Number(num);
-    if (isNaN(parsed)||parsed === 0) return "mới";
-    return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
-  };
+
 //Component Carousel chính
 const TRANSITION_DURATION_MS = 500;
-export function FeaturedCarousel() {
+export default function FeaturedCarousel() {
   const [comics, setComics] = useState<Comic[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -185,5 +186,3 @@ export function FeaturedCarousel() {
     </div>
   );
 };
-
-export default FeaturedCarousel;

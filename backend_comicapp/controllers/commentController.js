@@ -102,7 +102,7 @@ const toggleLikeComment = async (req, res) => {
 const getRecentComments = async (req, res) => {
     try {
         const comments = await Comment.findAll({
-            limit: 10, // Lấy 7 bình luận mới nhất
+            limit: 10, // Lấy 10 bình luận mới nhất
             where: { parentId: null }, // Chỉ lấy các bình luận gốc, không lấy trả lời
             order: [['createdAt', 'DESC']],
             attributes: ['commentId', 'content', 'createdAt'],

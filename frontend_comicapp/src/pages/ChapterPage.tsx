@@ -49,7 +49,7 @@ export default function ChapterPage() {
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [readingMode, setReadingMode] = useState<'long-strip' | 'paginated'>('long-strip');
-  const [imageWidth, setImageWidth] = useState('max-w-3xl');
+  const [imageWidth, setImageWidth] = useState('max-w-2xl');
   const [currentPage, setCurrentPage] = useState(0);
   const navigate = useNavigate();
   const { isLoggedIn} = useContext(AuthContext);

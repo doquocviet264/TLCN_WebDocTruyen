@@ -28,6 +28,7 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     tableName: 'Chapters',
+    timestamps: true,
     createdAt: 'createdAt',
     updatedAt: 'updatedAt', 
   });

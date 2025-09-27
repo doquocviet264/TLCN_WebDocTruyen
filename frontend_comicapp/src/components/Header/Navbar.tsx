@@ -5,15 +5,11 @@ import { Home, Heart, TrendingUp, BookOpen, Clock, History, Grid3X3, Search } fr
 const navItems = [
   { href: "/", label: "Trang chủ", icon: Home },
   { href: "/following", label: "Theo dõi", icon: Heart },
-  { href: "/hot", label: "Hot", icon: TrendingUp },
-  { href: "/favorites", label: "Yêu thích", icon: BookOpen },
-  { href: "/updated", label: "Mới cập nhật", icon: Clock },
   { href: "/history", label: "Lịch sử", icon: History },
-  { href: "/genres", label: "Thể loại", icon: Grid3X3 },
   { href: "/search", label: "Tìm truyện", icon: Search },
 ]
 
-export function Navbar() {
+export default function Navbar() {
   const location = useLocation()
 
   return (
@@ -45,4 +41,3 @@ export function Navbar() {
     </nav>
   )
 }
-export default Navbar;

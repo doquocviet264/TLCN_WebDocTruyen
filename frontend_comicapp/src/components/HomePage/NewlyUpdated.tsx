@@ -37,7 +37,7 @@ const ComicCardSkeleton = () => (
   </div>
 );
 
-export function NewlyUpdated() {
+export default function NewlyUpdated() {
   const [comics, setComics] = useState<Comic[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +106,7 @@ export function NewlyUpdated() {
                 className="overflow-hidden rounded-lg bg-card/90 backdrop-blur-sm border border-border/40 hover:shadow-lg transition-all duration-300 flex flex-col h-full"
                 style={{ padding: 0 }}
               >
-                <div className="relative w-full" style={{ paddingTop: "110%", overflow: "hidden" }}>
+                <div className="relative w-full" style={{ paddingTop: "130%", overflow: "hidden" }}>
                   <img
                     src={comic.image || "/placeholder.svg"}
                     alt={comic.title}
@@ -166,5 +166,3 @@ export function NewlyUpdated() {
     </section>
   );
 }
-
-export default NewlyUpdated;

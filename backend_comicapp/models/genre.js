@@ -10,6 +10,8 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             unique: true,
         },
-    }, { tableName: 'Genre', timestamps: false });
+    }, { 
+        tableName: 'Genre', 
+        timestamps: false });
     return Genre;
 };

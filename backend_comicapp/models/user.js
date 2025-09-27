@@ -33,11 +33,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(500),
       allowNull: true,
     },
-    coins: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0, // số vàng mặc định
-    },
+
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -72,6 +68,14 @@ module.exports = (sequelize, DataTypes) => {
           const salt = await bcrypt.genSalt(10);
           user.password = await bcrypt.hash(user.password, salt);
         }
+      },
+      afterCreate: async (user, options) => {
+        // Tự động tạo ví khi user được tạo
+        const Wallet = sequelize.models.Wallet;
+        await Wallet.create({
+          userId: user.userId,
+          balance: 0
+        });
       },
     },
   });

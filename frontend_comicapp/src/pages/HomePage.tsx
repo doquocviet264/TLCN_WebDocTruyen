@@ -5,7 +5,7 @@ import NewlyUpdated from '../components/HomePage/NewlyUpdated';
 import ReadingHistory from '../components/HomePage/ReadingHistory';
 import MonthlyRankings from '../components/HomePage/MonthlyRankings';
 import RecentComments from '../components/HomePage/RecentComments';
-import { ComicRow } from '../components/HomePage/ComicRow';
+import ComicRow from '../components/HomePage/ComicRow';
 
 interface GenreSection {
   genre: { name: string; slug: string };
@@ -20,7 +20,7 @@ interface HomepageSectionsData {
   completedSection: TitledSection;
   randomSection: TitledSection;
 }
-const HomePage: React.FC = () => {
+export default function HomePage() {
   const [sectionsData, setSectionsData] = useState<HomepageSectionsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -98,4 +98,3 @@ const HomePage: React.FC = () => {
 
 };
 
-export default HomePage;

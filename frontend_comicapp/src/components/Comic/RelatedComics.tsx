@@ -17,7 +17,7 @@ interface RelatedComicsProps {
   relatedComics: RelatedComic[];
 }
 
-export function RelatedComics({ relatedComics}: RelatedComicsProps) {
+export default function RelatedComics({ relatedComics}: RelatedComicsProps) {
   const formatViews = (views: number) => {
     if (views >= 1000000) return (views / 1000000).toFixed(1) + "M lượt xem";
     if (views >= 1000) return (views / 1000).toFixed(1) + "K lượt xem";
@@ -81,5 +81,3 @@ export function RelatedComics({ relatedComics}: RelatedComicsProps) {
     </Card>
   );
 }
-
-export default RelatedComics;

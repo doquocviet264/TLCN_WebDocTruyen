@@ -20,7 +20,7 @@ interface ComicHeaderProps {
   onFollowToggle: () => void;
 }
 
-export function ComicHeader({ comic, onFollowToggle }: ComicHeaderProps) {
+export default function ComicHeader({ comic, onFollowToggle }: ComicHeaderProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
@@ -160,5 +160,3 @@ export function ComicHeader({ comic, onFollowToggle }: ComicHeaderProps) {
 </Card>
   );
 }
-
-export default ComicHeader;

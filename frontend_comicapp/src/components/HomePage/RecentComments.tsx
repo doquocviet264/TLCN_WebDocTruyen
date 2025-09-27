@@ -37,7 +37,7 @@ const CommentSkeleton = () => (
 );
 
 // --- Component Chính ---
-export function RecentComments() {
+export default function RecentComments() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -121,4 +121,3 @@ export function RecentComments() {
 
   );
 }
-export default RecentComments;

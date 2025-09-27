@@ -1,122 +1,280 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import { ComicCard } from '../components/ComicCard';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-interface Story {
+// Interface cho dữ liệu từ API tài khoản
+interface AccountComic {
   id: number;
   title: string;
-  coverImage: string;
-  currentChapter: number;
-  totalChapters: number;
-  readDate: string;
-  source: 'device' | 'account';
+  slug: string;
+  image: string;
+  lastChapter: string;
+  chapterTitle: string;
+  lastReadAt: string;
 }
 
-const ReadingHistory = () => {
-  const [activeTab, setActiveTab] = useState<'device' | 'account'>('device');
-  
-  // Dữ liệu mẫu
-  const stories: Story[] = [
-    {
-      id: 1,
-      title: 'Thần Đạo Đan Tôn',
-      coverImage: 'https://via.placeholder.com/80x100',
-      currentChapter: 120,
-      totalChapters: 350,
-      readDate: '2 giờ trước',
-      source: 'device'
-    },
-    {
-      id: 2,
-      title: 'Võ Thần Chí Tôn',
-      coverImage: 'https://via.placeholder.com/80x100',
-      currentChapter: 45,
-      totalChapters: 200,
-      readDate: '5 giờ trước',
-      source: 'device'
-    },
-    {
-      id: 3,
-      title: 'Cửu Chuyển Thần Hồn Quyết',
-      coverImage: 'https://via.placeholder.com/80x100',
-      currentChapter: 78,
-      totalChapters: 150,
-      readDate: 'Hôm qua',
-      source: 'account'
-    },
-    {
-      id: 4,
-      title: 'Đấu Phá Thương Khung',
-      coverImage: 'https://via.placeholder.com/80x100',
-      currentChapter: 210,
-      totalChapters: 500,
-      readDate: '2 ngày trước',
-      source: 'account'
-    },
-  ];
+// Interface cho dữ liệu từ thiết bị (kết hợp thông tin từ API và localStorage)
+interface DeviceComicWithHistory {
+  slug: string;
+  title: string;
+  image: string;
+  id: number;
+  chapterNumber: number;
+  lastReadAt: string;
+}
 
-  const filteredStories = stories.filter(story => story.source === activeTab);
+// Interface cho item trong localStorage
+interface ReadingHistoryItem {
+  comicId: number;
+  chapterId: number;
+  chapterNumber: number;
+  lastReadAt: string;
+}
 
-  const deleteStory = (id: number) => {
-    // Xử lý xoá truyện khỏi lịch sử
-    console.log('Xoá truyện với id:', id);
-    // Trong thực tế, bạn sẽ cập nhật state hoặc gọi API ở đây
+const HISTORY_KEY = 'reading_history';
+
+export default function MyReadingHistory() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [accountComics, setAccountComics] = useState<AccountComic[]>([]);
+  const [deviceComics, setDeviceComics] = useState<DeviceComicWithHistory[]>([]);
+  const [loading, setLoading] = useState({
+    account: false,
+    device: false
+  });
+  const [error, setError] = useState({
+    account: '',
+    device: ''
+  });
+
+  // Kiểm tra đăng nhập
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    setIsLoggedIn(!!token);
+  }, []);
+
+  // Lấy dữ liệu từ tài khoản
+  const fetchAccountHistory = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setLoading(prev => ({ ...prev, account: true }));
+    setError(prev => ({ ...prev, account: '' }));
+
+    try {
+      const response = await axios.get<AccountComic[]>(`${import.meta.env.VITE_API_URL}/history`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAccountComics(response.data);
+    } catch (err) {
+      console.error('Lỗi khi lấy lịch sử từ tài khoản:', err);
+      setError(prev => ({ ...prev, account: 'Không thể tải lịch sử từ tài khoản' }));
+    } finally {
+      setLoading(prev => ({ ...prev, account: false }));
+    }
+  };
+
+  // Lấy dữ liệu từ thiết bị
+const fetchDeviceHistory = async () => {
+  setLoading(prev => ({ ...prev, device: true }));
+  setError(prev => ({ ...prev, device: '' }));
+
+  try {
+    const historyJson = localStorage.getItem(HISTORY_KEY);
+    if (!historyJson) {
+      setDeviceComics([]);
+      return;
+    }
+
+    const history: ReadingHistoryItem[] = JSON.parse(historyJson);
+    const comics: DeviceComicWithHistory[] = [];
+
+    // Nhóm các item theo comicId và lấy item mới nhất cho mỗi comic
+    const comicMap = new Map<number, ReadingHistoryItem>();
+
+    for (const item of history) {
+      const existingItem = comicMap.get(item.comicId);
+      
+      // Nếu chưa có hoặc có item cũ hơn, thì cập nhật với item mới hơn
+      if (!existingItem || new Date(item.lastReadAt) > new Date(existingItem.lastReadAt)) {
+        comicMap.set(item.comicId, item);
+      }
+    }
+
+    // Chuyển Map thành Array và lặp
+    const uniqueComics = Array.from(comicMap.entries());
+
+    // Lấy thông tin chi tiết cho từng comic duy nhất
+    for (const [comicId, item] of uniqueComics) {
+      try {
+        const response = await axios.get<{slug: string; title: string; image: string}>(`${import.meta.env.VITE_API_URL}/comics/id/${comicId}`);
+        
+        // Kiểm tra kiểu dữ liệu trước khi thêm vào mảng
+        if (isValidDeviceComic(response.data)) {
+          comics.push({
+            ...response.data,
+            id: item.comicId,
+            chapterNumber: item.chapterNumber,
+            lastReadAt: item.lastReadAt
+          });
+        } else {
+          console.warn(`Dữ liệu truyện không hợp lệ cho comicId: ${comicId}`, response.data);
+        }
+      } catch (err) {
+        console.error(`Lỗi khi lấy thông tin truyện ${comicId}:`, err);
+      }
+    }
+
+    // Sắp xếp theo thời gian đọc mới nhất
+    comics.sort((a, b) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime());
+
+    setDeviceComics(comics);
+  } catch (err) {
+    console.error('Lỗi khi xử lý lịch sử từ thiết bị:', err);
+    setError(prev => ({ ...prev, device: 'Không thể tải lịch sử từ thiết bị' }));
+  } finally {
+    setLoading(prev => ({ ...prev, device: false }));
+  }
+};
+
+  // Hàm kiểm tra kiểu dữ liệu DeviceComic
+  const isValidDeviceComic = (data: any): data is {slug: string; title: string; image: string} => {
+    return (
+      typeof data === 'object' &&
+      data !== null &&
+      typeof data.slug === 'string' &&
+      typeof data.title === 'string' &&
+      typeof data.image === 'string'
+    );
+  };
+
+  // Tự động load dữ liệu khi tab thay đổi
+  useEffect(() => {
+    fetchDeviceHistory();
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    if (value === 'account' && isLoggedIn) {
+      fetchAccountHistory();
+    }
+  };
+
+  const handleDelete = async (comicId: number, type: 'account' | 'device') => {
+    if (type === 'account') {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        await axios.delete(`${import.meta.env.VITE_API_URL}/history/${comicId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setAccountComics(prev => prev.filter(c => c.id !== comicId));
+      } catch (err) {
+        console.error('Lỗi xoá lịch sử account:', err);
+      }
+    } else if (type === 'device') {
+      try {
+        const historyJson = localStorage.getItem(HISTORY_KEY);
+        if (!historyJson) return;
+
+        const history: ReadingHistoryItem[] = JSON.parse(historyJson);
+        const updatedHistory = history.filter(item => item.comicId !== comicId);
+
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
+        setDeviceComics(prev => prev.filter(c => c.id !== comicId));
+      } catch (err) {
+        console.error('Lỗi xoá lịch sử device:', err);
+      }
+    }
+  };
+
+
+  const handleLoginRedirect = () => {
+    // Chuyển hướng đến trang đăng nhập
+    window.location.href = '/auth/login';
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-3xl">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Lịch sử đọc truyện</h1>
-      
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6">
-        <button
-          className={`py-2 px-4 font-medium ${activeTab === 'device' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
-          onClick={() => setActiveTab('device')}
-        >
-          Từ thiết bị
-        </button>
-        <button
-          className={`py-2 px-4 font-medium ${activeTab === 'account' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
-          onClick={() => setActiveTab('account')}
-        >
-          Từ tài khoản
-        </button>
-      </div>
-      
-      {/* Danh sách truyện */}
-      <div className="space-y-4">
-        {filteredStories.length > 0 ? (
-          filteredStories.map(story => (
-            <div key={story.id} className="flex items-center p-4 bg-white rounded-lg shadow-sm border border-gray-100">
-              <img 
-                src={story.coverImage} 
-                alt={story.title}
-                className="w-16 h-20 object-cover rounded-md"
-              />
-              <div className="ml-4 flex-1">
-                <h3 className="font-medium text-gray-900">{story.title}</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Đọc tiếp Chapter {story.currentChapter}/{story.totalChapters}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">{story.readDate}</p>
-              </div>
-              <button 
-                onClick={() => deleteStory(story.id)}
-                className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                aria-label="Xoá khỏi lịch sử"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+    <div className="min-h-screen p-4 sm:p-8">
+      <Tabs defaultValue="device" onValueChange={handleTabChange} className="w-full">
+        {/* Phần chọn Tab */}
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="device">Từ thiết bị</TabsTrigger>
+          <TabsTrigger value="account">Từ tài khoản</TabsTrigger>
+        </TabsList>
+
+        {/* Nội dung Tab "Từ thiết bị" */}
+        <TabsContent value="device">
+          {loading.device ? (
+            <div className="flex justify-center items-center h-64">
+              <p>Đang tải lịch sử từ thiết bị...</p>
             </div>
-          ))
-        ) : (
-          <div className="text-center py-10 text-gray-500">
-            Không có lịch sử đọc truyện {activeTab === 'device' ? 'trên thiết bị' : 'từ tài khoản'}
-          </div>
-        )}
-      </div>
+          ) : error.device ? (
+            <div className="flex justify-center items-center h-64 text-red-500">
+              <p>{error.device}</p>
+            </div>
+          ) : deviceComics.length === 0 ? (
+            <div className="flex justify-center items-center h-64">
+              <p>Chưa có lịch sử đọc trên thiết bị này</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 mt-6">
+              {deviceComics.map((comic, index) => (
+                <ComicCard
+                  key={`device-${comic.slug}-${index}`}
+                  imageUrl={comic.image}
+                  title={comic.title}
+                  href={`/truyen-tranh/${comic.slug}`}
+                  continueReadingText={`Chương ${comic.chapterNumber}`}
+                  continueReadingUrl={`/truyen-tranh/${comic.slug}/chapter/${comic.chapterNumber}`}
+                  onDelete={() => handleDelete(comic.id, 'device')}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Nội dung Tab "Từ tài khoản" */}
+        <TabsContent value="account">
+          {!isLoggedIn ? (
+            <div className="flex flex-col items-center justify-center text-center h-64 rounded-lg mt-6">
+              <p className="">
+                Vui lòng đăng nhập để xem và đồng bộ lịch sử đọc truyện của bạn.
+              </p>
+              <Button className="mt-4" onClick={handleLoginRedirect}>
+                Đi đến trang đăng nhập
+              </Button>
+            </div>
+          ) : loading.account ? (
+            <div className="flex justify-center items-center h-64">
+              <p>Đang tải lịch sử từ tài khoản...</p>
+            </div>
+          ) : error.account ? (
+            <div className="flex justify-center items-center h-64 text-red-500">
+              <p>{error.account}</p>
+            </div>
+          ) : accountComics.length === 0 ? (
+            <div className="flex justify-center items-center h-64">
+              <p>Chưa có lịch sử đọc từ tài khoản</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 mt-6">
+              {accountComics.map((comic) => (
+                <ComicCard
+                  key={`account-${comic.id}`}
+                  imageUrl={comic.image}
+                  title={comic.title}
+                  href={`/truyen-tranh/${comic.slug}`}
+                  continueReadingText={`${comic.chapterTitle || `Chương ${comic.lastChapter}`}`}
+                  continueReadingUrl={`/truyen-tranh/${comic.slug}/chuong/${comic.lastChapter}`}
+                  onDelete={() => handleDelete(comic.id, 'account')}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
-};
-
-export default ReadingHistory;
+}

@@ -50,7 +50,7 @@ const ReadingHistorySkeleton = () => (
   </Card>
 );
 
-export function ReadingHistory() {
+export default function ReadingHistory() {
   const [readingHistory, setReadingHistory] = useState<ReadingHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -225,5 +225,3 @@ export function ReadingHistory() {
     </Card>
   );
 }
-
-export default ReadingHistory;

@@ -15,16 +15,13 @@ router.post('/register', [
 router.post('/resend-otp', resendOTP);
 // Xác nhận OTP
 router.post('/verify-otp', verifyOTP);
-
 // Đăng nhập
 router.post('/login', [
   body('email').isEmail(),
   body('password').exists(),
 ], login);
-
 // Quên mật khẩu
 router.post('/forgot-password', forgotPassword);
-
 // Reset mật khẩu (gọi từ frontend sau khi click link)
 router.post('/reset-password', resetPassword);
 

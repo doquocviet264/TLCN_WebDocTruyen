@@ -16,3 +16,7 @@
   -ms-overflow-style: none; /* IE và Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+.dark .card {
+  box-shadow: 0 4px 12px oklch(0 0 0 / 0.4);
+}

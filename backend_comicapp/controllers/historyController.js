@@ -102,4 +102,30 @@ const clearReadingHistory = async (req, res) => {
     res.status(500).json({ message: "Lỗi máy chủ" });
   }
 };
-module.exports = { updateReadingHistory, getReadingHistory,clearReadingHistory };
+
+// Xóa lịch sử đọc theo comicId
+const deleteReadingHistoryByComic = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { comicId } = req.params;
+
+    if (!comicId) {
+      return res.status(400).json({ message: "Thiếu comicId" });
+    }
+
+    const deleted = await db.ReadingHistory.destroy({
+      where: { userId, comicId }
+    });
+
+    if (deleted === 0) {
+      return res.status(404).json({ message: "Không tìm thấy lịch sử đọc của truyện này" });
+    }
+
+    res.json({ message: "Đã xóa lịch sử đọc của truyện", comicId });
+
+  } catch (error) {
+    console.error("Lỗi khi xóa lịch sử đọc theo comicId:", error);
+    res.status(500).json({ message: "Lỗi máy chủ" });
+  }
+};
+module.exports = { updateReadingHistory, getReadingHistory,clearReadingHistory, deleteReadingHistoryByComic };

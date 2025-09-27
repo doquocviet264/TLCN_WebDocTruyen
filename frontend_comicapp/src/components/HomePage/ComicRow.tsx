@@ -22,7 +22,7 @@ const formatNumber = (num: unknown) => {
     const parsed = typeof num === "number" ? num : Number(num);
     if (isNaN(parsed)||parsed === 0) return "mới";
     return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
-  };
+};
 // --- Component Card cho mỗi truyện trong hàng ---
 const ComicRowCard = ({ comic }: { comic: Comic }) => (
   <Link to={`/truyen-tranh/${comic.slug}`} className="block w-40 flex-shrink-0 group">
@@ -61,7 +61,7 @@ const ComicRowSkeleton = () => (
 );
 
 // --- Component Chính ---
-export function ComicRow({ title, comics, isLoading }: ComicRowProps) {
+export default function ComicRow({ title, comics, isLoading }: ComicRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (direction: "left" | "right") => {
@@ -117,5 +117,3 @@ export function ComicRow({ title, comics, isLoading }: ComicRowProps) {
     </section>
   );
 }
-
-export default ComicRow;

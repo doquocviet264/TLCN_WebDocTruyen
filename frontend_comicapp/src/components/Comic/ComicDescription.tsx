@@ -7,7 +7,7 @@ interface ComicDescriptionProps {
   description: string
 }
 
-export function ComicDescription({ description }: ComicDescriptionProps) {
+export default function ComicDescription({ description }: ComicDescriptionProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const maxLength = 300
 
@@ -35,4 +35,3 @@ export function ComicDescription({ description }: ComicDescriptionProps) {
     </Card>
   )
 }
-export default ComicDescription;

@@ -1,4 +1,4 @@
-const { Comic, Genre, User, sequelize, Chapter } = require('../models/index');
+const { Comic, Genre, User, sequelize, Chapter, ComicRating } = require('../models/index');
 const { Op } = require('sequelize');
 
 // Lấy thông tin chi tiết truyện
@@ -343,7 +343,6 @@ const getHomepageSections = async (req, res) => {
 const getComicDetailForHistory = async (req, res) => {
     try {
         const { comicId } = req.params; // Lấy id từ params
-        const userId = req.user ? req.user.userId : null;
 
         const comic = await Comic.findOne({
             where: { comicId }, // Tìm bằng id
@@ -371,6 +370,176 @@ const getComicDetailForHistory = async (req, res) => {
     }
 };
 
+// Hàm tìm kiếm truyện với nhiều bộ lọc
+const searchComics = async (req, res) => {
+  try {
+    const {
+      q = '',
+      genres = '',
+      status = 'all',
+      country = 'all',
+      sortBy = 'newest',
+      page = 1,
+      limit = 40
+    } = req.query;
+
+    const statusMap = {
+      'Đang cập nhật': 'In Progress',
+      'Tạm ngưng': 'On Hold',
+      'Hoàn thành': 'Completed'
+    };
+
+    const where = {};
+
+    // Tìm theo tên hoặc tác giả
+    if (q) {
+      where[Op.or] = [
+        { title: { [Op.like]: `%${q}%` } },
+        { author: { [Op.like]: `%${q}%` } }
+      ];
+    }
+
+    // Lọc theo trạng thái
+    if (status !== 'all' && statusMap[status]) {
+      where.status = statusMap[status];
+    }
+
+    // Lọc theo thể loại
+    let genreFilter = [];
+    if (genres) {
+      genreFilter = genres.split(',').map(genre => genre.trim());
+    }
+
+    // Lọc theo quốc gia
+    const countryGenres = {
+      'nhat-ban': 'Manga',
+      'han-quoc': 'Manhwa',
+      'trung-quoc': 'Manhua',
+      'my': 'Comic',
+      'viet-nam': 'Việt Nam'
+    };
+
+    // TẤT CẢ thể loại bắt buộc (thể loại thường + thể loại quốc gia)
+    let allRequiredGenres = [...genreFilter];
+    if (country !== 'all' && countryGenres[country]) {
+      allRequiredGenres.push(countryGenres[country]);
+    }
+
+    // Xử lý sort
+    let order = [['createdAt', 'DESC']];
+    switch (sortBy) {
+      case 'rating':
+        order = [[sequelize.literal('rating'), 'DESC']];
+        break;
+      case 'oldest':
+        order = [['createdAt', 'ASC']];
+        break;
+      case 'popular':
+        order = [[sequelize.literal('chapters'), 'DESC']];
+        break;
+    }
+
+    const offset = (page - 1) * limit;
+
+    // Tìm comic IDs có TẤT CẢ thể loại yêu cầu
+    let comicIdsWithAllGenres = [];
+    
+    if (allRequiredGenres.length > 0) {
+      const genreResults = await Comic.findAll({
+        include: [{
+          model: Genre,
+          where: { name: { [Op.in]: allRequiredGenres } },
+          through: { attributes: [] },
+          attributes: []
+        }],
+        attributes: ['comicId'],
+        group: ['Comic.comicId'],
+        having: sequelize.where(
+          sequelize.fn('COUNT', sequelize.col('Genres.genreId')),
+          { [Op.gte]: allRequiredGenres.length }
+        ),
+        raw: true
+      });
+      
+      comicIdsWithAllGenres = genreResults.map(result => result.comicId);
+      
+      // Nếu không có comic nào thỏa mãn tất cả thể loại, trả về kết quả rỗng
+      if (comicIdsWithAllGenres.length === 0) {
+        return res.json({
+          comics: [],
+          totalComics: 0,
+          totalPages: 0,
+          currentPage: parseInt(page)
+        });
+      }
+      
+      // Thêm điều kiện comicId vào where
+      where.comicId = { [Op.in]: comicIdsWithAllGenres };
+    }
+
+    const { count, rows } = await Comic.findAndCountAll({
+      where,
+      include: [
+        {
+          model: Genre,
+          through: { attributes: [] },
+          attributes: ['name']
+        },
+        {
+          model: Chapter,
+          attributes: ['chapterNumber'],
+          order: [['chapterNumber', 'DESC']],
+          limit: 1,
+          separate: true
+        }
+      ],
+      attributes: {
+        include: [
+          [
+            sequelize.literal(
+              '(SELECT AVG(score) FROM ComicRatings WHERE ComicRatings.comicId = Comic.comicId)'
+            ),
+            'rating'
+          ],
+          [
+            sequelize.literal(
+              '(SELECT COUNT(*) FROM Chapters WHERE Chapters.comicId = Comic.comicId)'
+            ),
+            'chapters'
+          ]
+        ]
+      },
+      order,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      distinct: true
+    });
+
+    const comics = rows.map(comic => {
+      return {
+        id: comic.comicId,
+        slug: comic.slug,
+        title: comic.title,
+        image: comic.coverImage,
+        lastChapter: comic.Chapters.length > 0 ? comic.Chapters[0].chapterNumber : null,
+      };
+    });
+
+    const totalPages = Math.ceil(count / limit);
+
+    res.json({
+      comics,
+      totalComics: count,
+      totalPages,
+      currentPage: parseInt(page)
+    });
+  } catch (error) {
+    console.error('Lỗi khi tìm kiếm truyện:', error);
+    res.status(500).json({ message: 'Lỗi máy chủ' });
+  }
+};
+
+
 module.exports = {
     getComicDetails,
     toggleFollow,
@@ -378,5 +547,6 @@ module.exports = {
     getFeaturedComics,
     getRankings,
     getHomepageSections,
-    getComicDetailForHistory
+    getComicDetailForHistory,
+    searchComics
 };

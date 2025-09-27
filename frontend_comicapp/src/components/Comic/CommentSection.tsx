@@ -42,7 +42,7 @@ interface PostCommentResponse {
 
 const getAuthToken = () => localStorage.getItem("token");
 
-export function CommentSection({ comicId, comicSlug }: CommentSectionProps) {
+export default function CommentSection({ comicId, comicSlug }: CommentSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -370,5 +370,3 @@ export function CommentSection({ comicId, comicSlug }: CommentSectionProps) {
     </Card>
   );
 }
-
-export default CommentSection;

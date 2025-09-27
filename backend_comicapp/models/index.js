@@ -14,6 +14,9 @@ db.Comment = require('./comment.js')(sequelize, DataTypes);
 db.ChapterImage = require('./chapterImage.js')(sequelize, DataTypes);
 db.Transaction = require('./transaction.js')(sequelize, DataTypes);
 db.ReadingHistory = require('./readingHistory.js')(sequelize, DataTypes);
+db.Wallet = require('./wallet.js')(sequelize, DataTypes);
+db.CheckIn = require('./checkIn.js')(sequelize, DataTypes);
+db.Quest = require('./quest.js')(sequelize, DataTypes);
 // Định nghĩa các bảng trung gian và thiết lập mối quan hệ
 db.ComicFollow = sequelize.define('ComicFollows', {
     followId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true }
@@ -35,8 +38,16 @@ db.ChapterUnlock = sequelize.define('ChapterUnlock', {
   userId: { type: DataTypes.INTEGER, allowNull: false },
   chapterId: { type: DataTypes.INTEGER, allowNull: false },
 }, {tableName: 'chapterUnlocks', timestamps: true, createdAt: 'unlockedAt', updatedAt: false});
+db.UserQuest = sequelize.define('UserQuests', {
+  userQuestId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  userId: { type: DataTypes.INTEGER, allowNull: false },
+  questId: { type: DataTypes.INTEGER, allowNull: false },
+  progress: { type: DataTypes.INTEGER, defaultValue: 0 },
+  isClaimed: { type: DataTypes.BOOLEAN, defaultValue: false },
+}, {tableName: 'UserQuests', timestamps: true, createdAt: 'assignedDate', updatedAt: false});
 
 // Định nghĩa các mối quan hệ
+
 // Comic <-> Genre (Many-to-Many)
 db.Comic.belongsToMany(db.Genre, { through: 'GenreComic', foreignKey: 'comicId', timestamps: false });
 db.Genre.belongsToMany(db.Comic, { through: 'GenreComic', foreignKey: 'genreId', timestamps: false });
@@ -83,10 +94,6 @@ db.ChapterUnlock.belongsTo(db.Chapter, { foreignKey: 'chapterId' });
 db.User.hasMany(db.ChapterUnlock, { foreignKey: 'userId' });
 db.Chapter.hasMany(db.ChapterUnlock, { foreignKey: 'chapterId' });
 
-// User <-> Transaction
-db.User.hasMany(db.Transaction, { foreignKey: 'userId' });
-db.Transaction.belongsTo(db.User, { foreignKey: 'userId' });
-
 // Chapter <-> Transaction
 db.Chapter.hasMany(db.Transaction, { foreignKey: 'chapterId' });
 db.Transaction.belongsTo(db.Chapter, { foreignKey: 'chapterId' });
@@ -102,5 +109,26 @@ db.ReadingHistory.belongsTo(db.Comic, { foreignKey: 'comicId' });
 // Một Chapter có thể xuất hiện trong nhiều lịch sử
 db.Chapter.hasMany(db.ReadingHistory, { foreignKey: 'chapterId' });
 db.ReadingHistory.belongsTo(db.Chapter, { foreignKey: 'chapterId' });
+
+// User <-> Wallet (1-1)
+db.User.hasOne(db.Wallet, { foreignKey: 'userId' });
+db.Wallet.belongsTo(db.User, { foreignKey: 'userId' });
+
+// Wallet <-> Transaction (1 - N)
+db.Wallet.hasMany(db.Transaction, { foreignKey: 'walletId' });
+db.Transaction.belongsTo(db.Wallet, { foreignKey: 'walletId' });
+// User <-> CheckIn (1 - N)
+db.User.hasMany(db.CheckIn, { foreignKey: 'userId' });
+db.CheckIn.belongsTo(db.User, { foreignKey: 'userId' });
+
+// User <-> Quest (Many-to-Many qua UserQuests)
+db.User.belongsToMany(db.Quest, { through: db.UserQuest, foreignKey: 'userId', otherKey: 'questId', as: 'Quests' });
+db.Quest.belongsToMany(db.User, { through: db.UserQuest, foreignKey: 'questId', otherKey: 'userId', as: 'Users' });
+
+// UserQuest <-> User & Quest
+db.UserQuest.belongsTo(db.User, { foreignKey: 'userId' });
+db.UserQuest.belongsTo(db.Quest, { foreignKey: 'questId' });
+db.User.hasMany(db.UserQuest, { foreignKey: 'userId' });
+db.Quest.hasMany(db.UserQuest, { foreignKey: 'questId' });
 //Export đối tượng db
 module.exports = db;

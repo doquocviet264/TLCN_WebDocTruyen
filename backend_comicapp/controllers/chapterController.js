@@ -1,5 +1,5 @@
 const db = require("../models"); // <- thêm dòng này
-const { Chapter, User, ChapterUnlock, Transaction, Comic, ChapterImage } = db;
+const { Chapter, User, ChapterUnlock, Transaction, Comic, ChapterImage, Wallet } = db;
 
 
 // Lấy thông tin chi tiết chương truyện
@@ -132,7 +132,7 @@ const unlockChapter = async (req, res) => {
     const userId = req.user.userId;
     const { chapterId } = req.params;
 
-    // 1. Lấy thông tin user và chapter
+    // Lấy thông tin user và chapter
     const user = await User.findByPk(userId);
     const chapter = await Chapter.findByPk(chapterId);
 
@@ -140,7 +140,13 @@ const unlockChapter = async (req, res) => {
       return res.status(404).json({ msg: "User hoặc Chapter không tồn tại" });
     }
 
-    // 2. Kiểm tra nếu chapter đã unlock
+    // Lấy ví của user
+    const wallet = await Wallet.findOne({ where: { userId } });
+    if (!wallet) {
+      return res.status(404).json({ msg: "Không tìm thấy ví của người dùng" });
+    }
+
+    // Kiểm tra nếu chapter đã unlock
     const existingUnlock = await ChapterUnlock.findOne({
       where: { userId, chapterId },
     });
@@ -148,16 +154,16 @@ const unlockChapter = async (req, res) => {
       return res.status(400).json({ msg: "Bạn đã mở khóa chương này rồi" });
     }
 
-    // 3. Kiểm tra số vàng
-    if (user.balance < 1) {
+    // Kiểm tra số vàng trong ví
+    if (wallet.balance < 1) {
       return res.status(400).json({ msg: "Không đủ vàng để mở khóa chương" });
     }
 
-    // 4. Trừ vàng, tạo transaction và unlock
+    // Transaction DB
     await db.sequelize.transaction(async (t) => {
-      // Trừ vàng
-      user.balance -= 1;
-      await user.save({ transaction: t });
+      // Trừ vàng trong ví
+      wallet.balance -= 1;
+      await wallet.save({ transaction: t });
 
       // Tạo ChapterUnlock
       await ChapterUnlock.create(
@@ -168,7 +174,7 @@ const unlockChapter = async (req, res) => {
       // Tạo Transaction
       await Transaction.create(
         {
-          userId,
+          walletId: wallet.walletId,
           chapterId,
           amount: 1,
           status: "success",
@@ -183,6 +189,7 @@ const unlockChapter = async (req, res) => {
     return res.status(500).json({ msg: "Lỗi server" });
   }
 };
+
 
 module.exports = {
   unlockChapter,

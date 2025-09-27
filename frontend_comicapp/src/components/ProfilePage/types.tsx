@@ -39,7 +39,11 @@ export interface Comic {
   progress: string
   lastRead: string
 }
-
+export interface DailyCheckinItem {
+  day: number;
+  checked: boolean;
+  isToday?: boolean;
+}
 export interface Transaction {
   id: number;
   description: string;
@@ -53,4 +57,6 @@ export interface Quest {
   reward: number;
   progress: number;
   target: number;
+  claimed?: boolean;
+  category?: string; // Thêm category nếu cần
 }

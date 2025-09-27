@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const {getHomepageSections, getComicDetails, toggleFollow, getNewlyUpdatedComics, getFeaturedComics, getRankings, getComicDetailForHistory} = require('../controllers/comicController.js');
+const {getHomepageSections, getComicDetails, toggleFollow, getNewlyUpdatedComics, getFeaturedComics, getRankings, getComicDetailForHistory, searchComics} = require('../controllers/comicController.js');
 const { protect, optionalAuth } = require('../middleware/authMiddleware.js');
 
-
-
+router.get('/search', searchComics);
 // lấy danh sách truyện cho trang home
 router.get('/homepage-sections', getHomepageSections);
 // lấy dữ liệu cho bảng
@@ -17,8 +16,6 @@ router.get('/newly-updated', getNewlyUpdatedComics);
 router.get('/:slug', optionalAuth, getComicDetails);
 //  Theo dõi/bỏ theo dõi, yêu cầu đăng nhập
 router.post('/:slug/follow', protect, toggleFollow);
-
-
 // lấy thông tin truyện từ id
 router.get('/id/:comicId', getComicDetailForHistory);
 

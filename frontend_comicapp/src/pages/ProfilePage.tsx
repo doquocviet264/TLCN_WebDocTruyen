@@ -10,7 +10,12 @@ import { ProfileInfoTab } from "../components/ProfilePage/InfoTab";
 import { ProfileActivityTab } from "../components/ProfilePage/ActivityTab";
 import { ProfileGoldTab } from "../components/ProfilePage/GoldTab";
 import { ProfileSettingsTab } from "../components/ProfilePage/SettingsTab";
-import { UserProfile, Comic, Transaction, Quest } from "../components/ProfilePage/types";
+import { UserProfile, Comic, Transaction, Quest, DailyCheckinItem } from "../components/ProfilePage/types";
+
+interface GoldInfoResponse {
+  transactionHistory: Transaction[];
+  dailyCheckin: DailyCheckinItem[];
+}
 
 interface ApiUserResponse {
   userId: number;
@@ -24,74 +29,157 @@ interface ApiUserResponse {
   totalRead: number;
   favorites: number;
   comments: number;
+  goldCoins: number;
+}
+
+// Interface cho API Quest response
+interface QuestApiResponse {
+  success: boolean;
+  data: Quest[];
+}
+interface ClaimQuestResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    reward: number;
+    newBalance: number;
+  };
 }
 
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<"info" | "activity" | "gold" | "settings">("info");
   const [user, setUser] = useState<UserProfile | null>(null);
-
-  const mockDefaults: Pick<UserProfile, "levelName" | "experience" | "goldCoins"> = {
-    levelName: "Độc giả VIP",
-    experience: { current: 750, max: 1000 },
-    goldCoins: 1250,
-  };
+  
+  // State quản lý dữ liệu GoldTab
+  const [transactionHistory, setTransactionHistory] = useState<Transaction[]>([]);
+  const [dailyCheckin, setDailyCheckin] = useState<DailyCheckinItem[]>([]);
+  const [quests, setQuests] = useState<Quest[]>([]); // State mới cho quests
+  const [loadingQuests, setLoadingQuests] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) {
+      console.error("Không tìm thấy token, vui lòng đăng nhập lại.");
+      return;
+    }
 
-    axios.get<ApiUserResponse>(`${import.meta.env.VITE_API_URL}/user/profile`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(res => {
-      const apiUser = res.data;
+    const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
-      const mergedUser: UserProfile = {
-        name: apiUser.username ?? "Người dùng",
-        email: apiUser.email ?? "unknown@email.com",
-        gender: apiUser.gender,
-        birthday: apiUser.birthday ?? "1970-01-01",
-        avatar: apiUser.avatar || "/diverse-user-avatars.png",
-        joinDate: apiUser.joinDate ?? "1970-01-01",
-        totalRead: apiUser.totalRead ?? 0,
-        favorites: apiUser.favorites ?? 0,
-        comments: apiUser.comments ?? 0,
-        ...mockDefaults,
-      };
+    const fetchData = async () => {
+      try {
+        // Fetch user data
+        const resUser = await axios.get<ApiUserResponse>(
+          `${import.meta.env.VITE_API_URL}/user/profile`,
+          authHeaders
+        );
 
-      setUser(mergedUser);
-    })
-    .catch(err => console.error("Lỗi lấy profile:", err));
+        const apiUser = resUser.data;
+        const mergedUser: UserProfile = {
+          name: apiUser.username ?? "Người dùng",
+          email: apiUser.email ?? "unknown@email.com",
+          gender: apiUser.gender,
+          birthday: apiUser.birthday ?? "1970-01-01",
+          avatar: apiUser.avatar || "/diverse-user-avatars.png",
+          joinDate: apiUser.joinDate ?? "1970-01-01",
+          totalRead: apiUser.totalRead ?? 0,
+          favorites: apiUser.favorites ?? 0,
+          comments: apiUser.comments ?? 0,
+          levelName: "Độc giả VIP",
+          experience: { current: 750, max: 1000 },
+          goldCoins: apiUser.goldCoins ?? 0,
+        };
+        setUser(mergedUser);
+
+        // Fetch gold details
+        const resGold = await axios.get<GoldInfoResponse>(
+          `${import.meta.env.VITE_API_URL}/user/gold-details`,
+          authHeaders
+        );
+        setTransactionHistory(resGold.data.transactionHistory);
+        setDailyCheckin(resGold.data.dailyCheckin);
+
+        // FETCH QUESTS từ API mới
+        await fetchDailyQuests(token);
+
+      } catch (err) {
+        console.error("Lỗi khi lấy dữ liệu người dùng:", err);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  if (!user) return <div className="flex items-center justify-center h-screen">Đang tải...</div>;
+  // Hàm fetch quests hàng ngày
+  const fetchDailyQuests = async (token?: string) => {
+    try {
+      setLoadingQuests(true);
+      const authToken = token || localStorage.getItem("token");
+      if (!authToken) return;
+
+      const response = await axios.get<QuestApiResponse>(
+        `${import.meta.env.VITE_API_URL}/quests/daily`,
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+
+      if (response.data.success) {
+        setQuests(response.data.data);
+      }
+    } catch (error) {
+      console.error("Lỗi khi lấy nhiệm vụ:", error);
+    } finally {
+      setLoadingQuests(false);
+    }
+  };
+
+  // Callback khi người dùng điểm danh
+  const handleCheckin = (updatedCheckin: DailyCheckinItem[], newGold: number) => {
+    setDailyCheckin(updatedCheckin);
+    setUser((prev) => prev ? { ...prev, goldCoins: newGold } : prev);
+  };
+
+  // Callback khi nhận thưởng quest
+  const handleClaimQuest = async (questId: number) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await axios.post<ClaimQuestResponse>(
+        `${import.meta.env.VITE_API_URL}/quests/${questId}/claim`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // TypeScript giờ đã biết response.data là ClaimQuestResponse
+      if (response.data.success) {
+        // Cập nhật số dư vàng
+        setUser(prev => prev ? { ...prev, goldCoins: response.data.data!.newBalance } : prev);
+
+        // Cập nhật trạng thái quest
+        setQuests(prev => prev.map(quest =>
+          quest.id === questId ? { ...quest, claimed: true } : quest
+        ));
+
+        console.log("Nhận thưởng thành công:", response.data.data!.reward);
+      }
+    } catch (error) {
+      console.error("Lỗi khi nhận thưởng:", error);
+    }
+  };
+
+  if (!user) {
+    return <div className="flex items-center justify-center h-screen">Đang tải...</div>;
+  }
 
   const readingList: Comic[] = [
     { id: 1, title: "One Piece", cover: "https://placehold.co/128x160/232323/FFF?text=OP", status: "Đang đọc", progress: "Chương 1095/1095", lastRead: "2 giờ trước" },
     { id: 2, title: "Naruto", cover: "https://placehold.co/128x160/232323/FFF?text=NT", status: "Hoàn thành", progress: "Chương 700/700", lastRead: "1 tuần trước" },
-    { id: 3, title: "Attack on Titan", cover: "https://placehold.co/128x160/232323/FFF?text=AOT", status: "Yêu thích", progress: "Chương 139/139", lastRead: "3 ngày trước" },
-  ];
-
-  const transactionHistory: Transaction[] = [
-    { id: 1, description: "Điểm danh hàng ngày", amount: 10, date: "2023-10-27" },
-    { id: 2, description: "Mở khóa chương VIP", amount: -50, date: "2023-10-26" },
-    { id: 3, description: "Hoàn thành nhiệm vụ đọc 5 chương", amount: 100, date: "2023-10-26" },
-    { id: 4, description: "Nạp đồng vàng", amount: 1000, date: "2023-10-25" },
-  ];
-
-  const dailyCheckin = Array.from({ length: 7 }, (_, i) => ({ day: i + 1, checked: i < 4 }));
-
-  const quests: Quest[] = [
-    { id: 1, title: "Đọc 5 chương truyện bất kỳ", reward: 100, progress: 3, target: 5 },
-    { id: 2, title: "Bình luận 3 lần", reward: 50, progress: 3, target: 3 },
-    { id: 3, title: "Đăng nhập 7 ngày liên tiếp", reward: 200, progress: 4, target: 7 },
   ];
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* Sidebar */}
+          {/* Sidebar (giữ nguyên) */}
           <div className="lg:w-1/4">
             <Card className="bg-card/50 backdrop-blur-sm border-border/50">
               <CardContent className="p-6">
@@ -155,11 +243,14 @@ export default function ProfilePage() {
             {activeTab === "info" && <ProfileInfoTab user={user} />}
             {activeTab === "activity" && <ProfileActivityTab readingList={readingList} />}
             {activeTab === "gold" && (
-              <ProfileGoldTab 
+              <ProfileGoldTab
                 goldCoins={user.goldCoins}
                 dailyCheckin={dailyCheckin}
                 quests={quests}
                 transactionHistory={transactionHistory}
+                onCheckin={handleCheckin}
+                onClaimQuest={handleClaimQuest} // Thêm prop mới
+                loadingQuests={loadingQuests} // Thêm prop loading
               />
             )}
             {activeTab === "settings" && <ProfileSettingsTab />}

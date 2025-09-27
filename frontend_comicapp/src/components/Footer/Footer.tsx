@@ -1,7 +1,7 @@
 import { Facebook, Twitter, Instagram, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 
-export function Footer() {
+export default function Footer() {
   return (
     <footer className="border-t bg-card/30 backdrop-blur-sm mt-auto">
       <div className="container px-4 py-8">
@@ -65,4 +65,3 @@ export function Footer() {
     </footer>
   );
 }
-export default Footer

@@ -24,7 +24,7 @@ interface RatingWidgetProps {
   onRatingUpdate?: (rating: number) => void;
 }
 
-export function RatingWidget({ comicId, onRatingUpdate }: RatingWidgetProps) {
+export default function RatingWidget({ comicId, onRatingUpdate }: RatingWidgetProps) {
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -188,4 +188,3 @@ export function RatingWidget({ comicId, onRatingUpdate }: RatingWidgetProps) {
   );
 }
 
-export default RatingWidget;

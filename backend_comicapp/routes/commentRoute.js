@@ -7,10 +7,8 @@ const { protect, optionalAuth } = require('../middleware/authMiddleware.js');
 router.get('/recent', getRecentComments);
 // Lấy comments của một truyện (có thể xem khi chưa đăng nhập)
 router.get('/comic/:slug', optionalAuth, getCommentsByComic);
-
 // Tạo một comment mới (yêu cầu đăng nhập)
 router.post('/', protect, createComment);
-
 // Like/unlike một comment (yêu cầu đăng nhập)
 router.post('/:commentId/like', protect, toggleLikeComment);
 

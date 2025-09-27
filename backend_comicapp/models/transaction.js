@@ -5,22 +5,25 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true,
     },
-    userId: {
+    walletId: {               
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,  
     },
     chapterId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
     },
     amount: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    transactionDate: {
-      type: DataTypes.DATE,
+    type: {
+      type: DataTypes.ENUM('credit', 'debit'),
       allowNull: false,
-      defaultValue: DataTypes.NOW,
+    },
+    description: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     status: {
       type: DataTypes.ENUM('success', 'pending', 'failed'),
@@ -29,13 +32,10 @@ module.exports = (sequelize, DataTypes) => {
     },
   }, {
     tableName: 'Transactions',
-    timestamps: false,
+    timestamps: true,
+    createdAt: 'transactionDate',
+    updatedAt: false
   });
-
-  Transaction.associate = (models) => {
-    Transaction.belongsTo(models.User, { foreignKey: 'userId' });
-    Transaction.belongsTo(models.Chapter, { foreignKey: 'chapterId' });
-  };
 
   return Transaction;
 };

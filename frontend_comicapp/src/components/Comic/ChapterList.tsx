@@ -43,7 +43,7 @@ interface ReadingHistoryItem {
 
 const HISTORY_KEY = 'reading_history';
 
-export function ChapterList({ chapters, comicSlug }: ChapterListProps) {
+export default function ChapterList({ chapters, comicSlug }: ChapterListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
@@ -270,4 +270,3 @@ export function ChapterList({ chapters, comicSlug }: ChapterListProps) {
   );
 }
 
-export default ChapterList;

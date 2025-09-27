@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
-  const ReadingHistory = sequelize.define('ReadingHistory', {
-    historyId: {
+  const Wallet = sequelize.define('Wallet', {
+    walletId: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
@@ -9,20 +9,17 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    comicId: {
+    balance: {
       type: DataTypes.INTEGER,
       allowNull: false,
-    },
-    chapterId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
+      defaultValue: 0,
     },
   }, {
-    tableName: 'ReadingHistory',
+    tableName: 'Wallets',
     timestamps: true,
     createdAt: false,
-    updatedAt: 'lastReadAt'
+    updatedAt: 'lastUpdated'
   });
 
-  return ReadingHistory;
+  return Wallet;
 };

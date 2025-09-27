@@ -60,7 +60,7 @@
   --background: oklch(0.18 0.02 260); /* Xanh navy sáng hơn (#1a2238) */
   --foreground: oklch(0.96 0.01 260); /* Gần trắng */
 
-  --card: oklch(0.22 0.02 260 / 0.9); /* Card sáng hơn nền */
+  --card: oklch(0.28 0.02 260 / 0.95); /* Card sáng hơn nền */
   --card-foreground: oklch(0.96 0.01 260);
 
   --popover: oklch(0.2 0.02 260 / 0.95);
@@ -72,8 +72,8 @@
   --secondary: oklch(0.75 0.12 200); /* Teal sáng hơn */
   --secondary-foreground: oklch(0.1 0.02 260);
 
-  --muted: oklch(0.25 0.02 260); /* Nền muted xanh nhạt hơn */
-  --muted-foreground: oklch(0.7 0.02 260);
+  --muted: oklch(0.4 0.02 260); /* sáng hơn rõ ràng */
+  --muted-foreground: oklch(0.8 0.02 260); /* chữ dễ đọc */
 
   --accent: oklch(0.78 0.12 220); /* Xanh ngọc sáng hơn */
   --accent-foreground: oklch(0.1 0.02 260);
@@ -81,7 +81,7 @@
   --destructive: oklch(0.6 0.2 25); /* Đỏ tươi */
   --destructive-foreground: oklch(0.98 0 0);
 
-  --border: oklch(0.35 0.02 260); /* Viền sáng hơn */
+  --border: oklch(0.45 0.02 260); /* Viền sáng hơn */
   --input: oklch(0.25 0.02 260);
   --ring: oklch(0.72 0.15 250 / 0.6);
 
@@ -157,4 +157,20 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Track khi unchecked */
+[data-state="unchecked"] .switch-track {
+  background-color: var(--muted);
+  border: 1px solid var(--border); /* nền xám nhạt hoặc xám đậm tùy bạn */
+}
+
+/* Track khi checked */
+[data-state="checked"] .switch-track {
+  background-color: var(--primary); /* xanh dương */
+}
+
+/* Thumb */
+.switch-thumb {
+  background-color: var(--primary); /* cho nó luôn xanh dương, kể cả unchecked */
 }

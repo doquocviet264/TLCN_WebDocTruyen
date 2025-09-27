@@ -36,7 +36,7 @@ const RankingItemSkeleton = () => (
   </div>
 );
 // --- Component Chính ---
-export function MonthlyRankings() {
+export default function MonthlyRankings() {
   const [rankings, setRankings] = useState<RankingsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -133,5 +133,3 @@ export function MonthlyRankings() {
     </Card>
   );
 }
-
-export default MonthlyRankings;

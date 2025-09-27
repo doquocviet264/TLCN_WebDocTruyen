@@ -31,7 +31,7 @@ export function SettingsSheet({ isOpen, onOpenChange, isDarkMode, setIsDarkMode,
                   <span>Chế độ tối</span>
                   <span className="font-normal text-sm text-muted-foreground">Giảm mỏi mắt trong môi trường tối.</span>
               </Label>
-              <Switch id="dark-mode" checked={isDarkMode} onCheckedChange={setIsDarkMode} />
+              <Switch id="dark-mode" checked={isDarkMode} onCheckedChange={setIsDarkMode} className="data-[state=unchecked]:bg-muted data-[state=checked]:bg-primary [&>span]:bg-primary"/>
             </div>
           </div>
 
