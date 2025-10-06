@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { getProfile, updateProfile, changePassword, uploadAvatar, getGoldDetails, performCheckIn } = require('../controllers/userController');
+const { getProfile, updateProfile, changePassword, uploadAvatar, getGoldDetails, performCheckIn, getUserActivity } = require('../controllers/userController');
 const { protect } = require('../middleware/authMiddleware');
 
 // cấu hình multer (chỉ nhận ảnh)
@@ -29,4 +29,6 @@ router.post('/avatar', upload.single('avatar'), uploadAvatar);
 router.get('/gold-details', getGoldDetails);
 // Thực hiện điểm danh
 router.post('/checkin', performCheckIn);
+
+router.get('/activity', getUserActivity);
 module.exports = router;

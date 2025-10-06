@@ -1,7 +1,8 @@
-const { User, Comic, Comment, ComicFollow, Chapter, Transaction, Wallet, CheckIn, sequelize } = require('../models');
-const { Op } = require('sequelize');
+const { User, Comic, Comment, ComicFollow, Chapter, Transaction, Wallet, CheckIn, ReadingHistory, sequelize } = require('../models');
+const {Sequelize, Op } = require('sequelize');
 const cloudinary = require('../config/cloudinary');
 const fs = require('fs/promises');
+
 
 // Lấy thông tin profile người dùng
 const getProfile = async (req, res) => {
@@ -305,6 +306,220 @@ const performCheckIn = async (req, res) => {
     res.status(500).json({ message: 'Lỗi máy chủ' });
   }
 };
+const getUserActivity = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        // Sử dụng Promise.all để thực thi các truy vấn song song, tăng hiệu suất
+        const [readingList, favoriteComics, commentHistory] = await Promise.all([
+            getReadingList(userId),
+            getFavoriteComics(userId),
+            getCommentHistory(userId)
+        ]);
+
+        res.status(200).json({
+            readingList,
+            favoriteComics,
+            commentHistory
+        });
+
+    } catch (error) {
+        console.error("Lỗi khi lấy dữ liệu hoạt động:", error);
+        res.status(500).json({ message: "Lỗi máy chủ nội bộ" });
+    }
+};
+
+
+// 1. Lấy lịch sử đọc
+async function getReadingList(userId) {
+    // B1: Lấy bản ghi mới nhất cho mỗi comic
+    const latestReadingHistory = await ReadingHistory.findAll({
+        where: { userId },
+        attributes: [
+            'comicId',
+            [Sequelize.fn('MAX', Sequelize.col('lastReadAt')), 'lastReadAt'],
+        ],
+        group: ['comicId'],
+        raw: true,
+    });
+
+    if (latestReadingHistory.length === 0) return [];
+
+    // B2: Lấy chi tiết
+    const historyDetails = await Promise.all(
+        latestReadingHistory.map(async (h) => {
+            // Lấy thông tin chi tiết từ ReadingHistory
+            const item = await ReadingHistory.findOne({
+                where: {
+                    userId,
+                    comicId: h.comicId,
+                    lastReadAt: h.lastReadAt
+                },
+                include: [
+                    {
+                        model: Comic,
+                        attributes: ['comicId', 'title', 'coverImage', 'status'],
+                    },
+                    {
+                        model: Chapter,
+                        attributes: ['chapterNumber']
+                    }
+                ],
+                order: [['lastReadAt', 'DESC']]
+            });
+
+            if (!item) return null;
+
+            const comic = item.Comic;
+            const chapter = item.Chapter;
+
+            const lastChapterNumber = await Chapter.max('chapterNumber', {
+              where: { comicId: comic.comicId }
+            });
+
+
+            const lastReadChapter = parseInt(chapter?.chapterNumber || 0);
+
+            let statusText = "Đang đọc";
+            if (lastReadChapter === lastChapterNumber) {
+                statusText = "Hoàn thành";
+            }
+
+            return {
+                id: comic.comicId,
+                cover: comic.coverImage,
+                title: comic.title,
+                lastReadChapter: lastReadChapter,
+                lastChapterNumber: lastChapterNumber || 0,
+                lastRead: item.lastReadAt,
+                status: statusText,
+            };
+        })
+    );
+
+    // Loại bỏ null (nếu có comic bị lỗi)
+    return historyDetails.filter(Boolean);
+}
+
+
+
+// 2. Lấy truyện yêu thích (đang theo dõi)
+async function getFavoriteComics(userId) {
+    const user = await User.findByPk(userId);
+    if (!user) return [];
+
+    const followedComics = await user.getFollowingComics({
+        attributes: [
+            ['comicId', 'id'],
+            'title',
+            ['coverImage', 'cover']
+        ],
+        joinTableAttributes: [], // Không lấy dữ liệu từ bảng trung gian
+        limit: 8, // Lấy nhiều hơn một chút phòng trường hợp cần hiển thị thêm
+        order: [[Sequelize.literal('`ComicFollows`.`followDate`'), 'DESC']]
+    });
+
+    return followedComics;
+}
+
+// 3. Lấy lịch sử bình luận
+async function getCommentHistory(userId) {
+    const comments = await Comment.findAll({
+        where: { userId },
+        include: [{
+            model: Comic,
+            attributes: ['title']
+        }],
+        limit: 5, // Lấy 5 bình luận gần nhất
+        order: [['createdAt', 'DESC']]
+    });
+
+    // Định dạng lại dữ liệu
+    return comments.map(comment => ({
+        id: comment.commentId,
+        content: comment.content,
+        comicTitle: comment.Comic.title,
+        context: `${comment.Comic.title}`,
+        timestamp: comment.createdAt,
+    }));
+}
+// Lấy danh sách người dùng (phân trang cơ bản)
+const getAllUsers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = 10;
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await User.findAndCountAll({
+      attributes: [
+        "userId",
+        "username",
+        "email",
+        "avatar",
+        "role",
+        "status",
+        "isVerified",
+        "lastLogin",
+        "createdAt",
+      ],
+      include: [{ model: Wallet, attributes: ["balance"] }],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+    });
+
+    const totalPages = Math.ceil(count / limit);
+
+    res.json({
+      users: rows,
+      totalUsers: count,
+      totalPages,
+      currentPage: page,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách người dùng:", error);
+    res.status(500).json({ message: "Lỗi máy chủ" });
+  }
+};
+//Khóa / mở khóa tài khoản
+const toggleUserStatus = async (req, res) => {
+  try {
+    const { userId, action } = req.params;
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+
+    if (action === 'suspend') {
+      user.status = 'suspended';
+    } else if (action === 'activate') {
+      user.status = 'active';
+    } else {
+      return res.status(400).json({ message: 'Hành động không hợp lệ' });
+    }
+
+    await user.save();
+    res.json({ message: `Đã ${action === 'suspend' ? 'khóa' : 'mở khóa'} tài khoản thành công` });
+  } catch (error) {
+    console.error('Lỗi khi cập nhật trạng thái người dùng:', error);
+    res.status(500).json({ message: 'Lỗi máy chủ' });
+  }
+};
+
+// Cấp quyền admin
+const promoteToAdmin = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+
+    user.role = 'admin';
+    await user.save();
+
+    res.json({ message: 'Đã cấp quyền admin thành công' });
+  } catch (error) {
+    console.error('Lỗi khi cấp quyền admin:', error);
+    res.status(500).json({ message: 'Lỗi máy chủ' });
+  }
+};
 
 module.exports = { 
   getProfile, 
@@ -312,5 +527,9 @@ module.exports = {
   changePassword, 
   uploadAvatar, 
   getGoldDetails, 
-  performCheckIn 
+  performCheckIn,
+  getUserActivity,
+  getAllUsers,
+  toggleUserStatus,
+  promoteToAdmin
 };

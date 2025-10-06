@@ -1,5 +1,5 @@
 import { useState, useContext, useRef, useEffect, FormEvent } from "react";
-import { Search, Sun, Moon, User, LogIn, UserPlus, Menu, X } from "lucide-react";
+import { Search, Sun, Moon, User, LogIn, UserPlus, Menu, X, Bell } from "lucide-react";
 import Navbar from './Navbar';
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input"; 
@@ -9,6 +9,17 @@ import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "@/context/AuthContext";
 import SearchResults from "./SearchResults";
 
+interface Notification {
+  notificationId: number;
+  title: string;
+  message: string;
+  createdAt: string;
+  isRead: boolean;
+}
+
+
+
+
 export default function Header() {
   const { isLoggedIn, logout } = useContext(AuthContext);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -17,15 +28,86 @@ export default function Header() {
   const [showResults, setShowResults] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Lấy thông báo khi component mount
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // hoặc theo auth của bạn
+          }
+        });
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+      } catch (err) {
+        console.error("Lỗi khi lấy thông báo:", err);
+      }
+    };
+
+    fetchNotifications();
+  }, [isLoggedIn]);
+  
   const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const debounceRef = useRef<number | null>(null);
-
 
   const toggleTheme = () => {
     setDarkMode(!darkMode);
     document.documentElement.classList.toggle("dark", !darkMode);
   };
+
+  // Đánh dấu thông báo đã đọc
+ const markAsRead = async (id: number) => {
+  try {
+    await fetch(`${import.meta.env.VITE_API_URL}/notifications/${id}/read`, {
+      method: "PUT",
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+
+    setNotifications(notifications.map(noti =>
+      noti.notificationId === id ? { ...noti, isRead: true } : noti
+    ));
+  } catch (err) {
+    console.error("Lỗi đánh dấu thông báo đã đọc:", err);
+  }
+};
+  const timeAgo = (dateString: string) => {
+    const now = new Date();
+    const past = new Date(dateString);
+    const diff = Math.floor((now.getTime() - past.getTime()) / 1000);
+
+    if (diff < 60) return `${diff} giây trước`;
+    if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+    if (diff < 2592000) return `${Math.floor(diff / 86400)} ngày trước`;
+    if (diff < 31536000) return `${Math.floor(diff / 2592000)} tháng trước`;
+    return `${Math.floor(diff / 31536000)} năm trước`;
+  };
+  // Đánh dấu tất cả là đã đọc
+  const markAllAsRead = async () => {
+  try {
+    await fetch(`${import.meta.env.VITE_API_URL}/notifications/read-all`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+
+    setNotifications(notifications.map(noti => ({ ...noti, isRead: true })));
+  } catch (err) {
+    console.error("Lỗi đánh dấu tất cả thông báo đã đọc:", err);
+  }
+};
+
+  // Đếm số thông báo chưa đọc
+  const unreadCount = notifications.filter(noti => !noti.isRead).length;
 
   // Hàm tìm kiếm thực tế
   const performSearch = async (query: string) => {
@@ -69,7 +151,6 @@ export default function Header() {
     debounceRef.current = window.setTimeout(() => {
       performSearch(value);
     }, 300);
-
   };
 
   // Xử lý khi submit form (enter) - chuyển sang trang search
@@ -180,6 +261,60 @@ export default function Header() {
           >
             <Search className="h-4 w-4" />
           </Button>
+
+          {/* Notification Bell */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 relative">
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+              <div className="flex items-center justify-between p-2 border-b">
+                <h3 className="font-semibold">Thông báo</h3>
+                {unreadCount > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={markAllAsRead}
+                    className="text-xs h-auto p-1"
+                  >
+                    Đánh dấu đã đọc
+                  </Button>
+                )}
+              </div>
+              
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground">
+                  Không có thông báo
+                </div>
+              ) : (
+                notifications.map((notification) => (
+                  <DropdownMenuItem 
+                    key={notification.notificationId}
+                    className={`p-3 border-b last:border-b-0 cursor-pointer ${!notification.isRead ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
+                    onClick={() => markAsRead(notification.notificationId)}
+                  >
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex justify-between items-start">
+                        <span className="font-medium text-sm">{notification.title}</span>
+                        {!notification.isRead && (
+                          <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-1"></span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{notification.message}</p>
+                      <span className="text-xs text-muted-foreground">{timeAgo(notification.createdAt)}</span>
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9 relative">
             {darkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}

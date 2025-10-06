@@ -1,6 +1,6 @@
-const db = require("../models"); // <- thêm dòng này
-const { Chapter, User, ChapterUnlock, Transaction, Comic, ChapterImage, Wallet } = db;
-
+const db = require("../models"); 
+const { Chapter, User, ChapterUnlock, Transaction, Comic, ChapterImage, Wallet, sequelize  } = db;
+const cloudinary = require("../config/cloudinary");
 
 // Lấy thông tin chi tiết chương truyện
 const getChapterDetails = async (req, res) => {
@@ -191,8 +191,158 @@ const unlockChapter = async (req, res) => {
 };
 
 
+
+const updateChapter = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { title, chapterNumber, cost, isLocked, images } = req.body;
+
+    const chapter = await Chapter.findByPk(id, { transaction: t });
+    if (!chapter) {
+      await t.rollback();
+      return res.status(404).json({ message: "Không tìm thấy chương" });
+    }
+
+    // update field cơ bản
+    await chapter.update(
+      { title, chapterNumber, cost, isLocked },
+      { transaction: t }
+    );
+
+    // Lấy danh sách ảnh cũ
+    const oldImages = await ChapterImage.findAll({
+      where: { chapterId: id },
+      transaction: t,
+    });
+    const oldMap = new Map(oldImages.map(img => [img.imageId, img]));
+
+    if (Array.isArray(images)) {
+      for (let i = 0; i < images.length; i++) {
+        let { imageId, imageUrl } = images[i];
+
+        // Nếu là base64 -> upload lên Cloudinary
+        if (imageUrl && imageUrl.startsWith("data:")) {
+          const upload = await cloudinary.uploader.upload(imageUrl, { folder: "chapters" });
+          imageUrl = upload.secure_url;
+        }
+
+        if (imageId) {
+          // Cập nhật ảnh cũ
+          await ChapterImage.update(
+            { imageUrl, pageNumber: i + 1 },
+            { where: { imageId }, transaction: t }
+          );
+          oldMap.delete(imageId); // xóa khỏi danh sách "cũ" để không bị xóa nhầm
+        } else {
+          // Tạo ảnh mới
+          await ChapterImage.create(
+            { chapterId: id, imageUrl, pageNumber: i + 1 },
+            { transaction: t }
+          );
+        }
+      }
+    }
+
+    // Ảnh nào còn lại trong oldMap tức là client không gửi lên -> xóa
+    const deleteIds = Array.from(oldMap.keys());
+    if (deleteIds.length > 0) {
+      await ChapterImage.destroy({
+        where: { imageId: deleteIds },
+        transaction: t,
+      });
+    }
+
+    await t.commit();
+    res.json({ message: "Cập nhật chương thành công" });
+  } catch (err) {
+    await t.rollback();
+    console.error("Lỗi updateChapter:", err);
+    res.status(500).json({ message: "Lỗi máy chủ" });
+  }
+};
+const addChapter = async (req, res) => {
+  let t;
+  try {
+    const { comicId } = req.params;
+    const { title, chapterNumber, cost, isLocked, images } = req.body;
+
+    if (!title || !chapterNumber) {
+      return res.status(400).json({ message: "Thiếu tiêu đề hoặc số chương" });
+    }
+
+    // Check trùng số chương trước
+    const exists = await Chapter.findOne({ where: { comicId, chapterNumber } });
+    if (exists) {
+      return res.status(400).json({ message: `Chương ${chapterNumber} đã tồn tại` });
+    }
+
+    // Bắt đầu transaction
+    t = await sequelize.transaction();
+
+    // 1. Tạo Chapter
+    const chapter = await Chapter.create(
+      {
+        comicId,
+        title,
+        chapterNumber,
+        cost: isLocked ? cost : 0,
+        isLocked: !!isLocked,
+      },
+      { transaction: t }
+    );
+
+    // 2. Lưu ảnh
+    if (Array.isArray(images) && images.length > 0) {
+      const imageRecords = [];
+
+      for (let i = 0; i < images.length; i++) {
+        let { imageUrl, pageNumber } = images[i];
+
+        if (imageUrl && imageUrl.startsWith("data:")) {
+          const upload = await cloudinary.uploader.upload(imageUrl, {
+            folder: `chapters`,
+          });
+          imageUrl = upload.secure_url;
+        }
+
+        imageRecords.push({
+          chapterId: chapter.chapterId,
+          imageUrl,
+          pageNumber: pageNumber || i + 1,
+        });
+      }
+
+      await ChapterImage.bulkCreate(imageRecords, { transaction: t });
+    }
+
+    await t.commit();
+
+    // Lấy lại danh sách ảnh
+    const imgs = await ChapterImage.findAll({
+      where: { chapterId: chapter.chapterId },
+      order: [["pageNumber", "ASC"]],
+    });
+
+    return res.status(201).json({
+      message: "Thêm chương thành công",
+      chapter: { ...chapter.toJSON(), images: imgs },
+    });
+  } catch (err) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error("Lỗi addChapter:", err);
+    return res.status(500).json({ message: "Lỗi máy chủ", error: err.message });
+  }
+};
+
+
+
 module.exports = {
   unlockChapter,
   getChapterDetails,
-  checkChapterUnlockStatus
+  checkChapterUnlockStatus,
+  updateChapter,
+  addChapter,
 };

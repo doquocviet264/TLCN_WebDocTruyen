@@ -6,6 +6,8 @@ import { CircleDollarSign, CalendarCheck, Target, ListChecks, CheckCircle } from
 import { Transaction, Quest, DailyCheckinItem } from "./types";
 import { toast } from "react-toastify"
 import { Progress } from "@/components/ui/progress"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface ProfileGoldTabProps {
   goldCoins: number;
@@ -22,6 +24,17 @@ interface CheckinResponse {
   newBalance: number;
   dailyCheckin: DailyCheckinItem[];
 }
+interface MoMoResponse {
+  partnerCode: string;
+  orderId: string;
+  requestId: string;
+  amount: number;
+  responseTime: number;
+  message: string;
+  resultCode: number;
+  payUrl: string;
+  shortLink: string;
+}
 
 export function ProfileGoldTab({
   goldCoins,
@@ -35,6 +48,38 @@ export function ProfileGoldTab({
   const [coins, setCoins] = useState<number>(goldCoins ?? 0);
   const [checkinList, setCheckinList] = useState<DailyCheckinItem[]>(dailyCheckin || []);
   const [claimingQuest, setClaimingQuest] = useState<number | null>(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedAmount, setSelectedAmount] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const handleTopup = async (amount: number) => {
+  if (selectedAmount === 0) return;
+  setLoading(true);
+  try {
+    const response = await axios.post<MoMoResponse>(`http://localhost:3000/payment`, {
+      amount: selectedAmount
+    });
+
+    const data = response.data;
+
+    if (data.resultCode === 0 && data.payUrl) {
+      window.open(data.payUrl, "_blank"); // mở tab mới
+      toast.success(`Đang mở cổng thanh toán MoMo cho ${selectedAmount.toLocaleString()} đ`);
+      setOpenDialog(false);
+      setSelectedAmount(0);
+    } else {
+      toast.error(`Lỗi: ${data.message}`);
+    }
+  } catch (err) {
+    console.error(err);
+    toast.error("Nạp tiền thất bại, thử lại sau.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
+  const topupOptions = [10000, 20000, 50000, 100000, 200000, 500000];
 
   const handleCheckin = async () => {
     try {
@@ -89,9 +134,45 @@ export function ProfileGoldTab({
         </CardHeader>
         <CardContent className="flex items-center justify-between">
           <p className="text-3xl font-bold text-yellow-400">{coins.toLocaleString()}</p>
-          <Button>Nạp thêm</Button>
+          <Button onClick={() => setOpenDialog(true)}>Nạp thêm</Button>
         </CardContent>
       </Card>
+
+      {/* Dialog nạp thêm */}
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+  <DialogContent className="sm:max-w-[400px] p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg">
+    <DialogHeader className="text-center">
+      <DialogTitle className="text-lg font-bold text-gray-800">
+        Chọn số tiền muốn nạp
+      </DialogTitle>
+    </DialogHeader>
+
+    <div className="grid grid-cols-2 gap-4 mt-6">
+      {topupOptions.map(amount => (
+        <button
+          key={amount}
+          onClick={() => setSelectedAmount(amount)}
+          className={`flex items-center justify-center p-4 rounded-xl font-medium border transition-all
+            ${selectedAmount === amount ? " " : "bg-white text-gray-700 border-gray-200 hover:bg-blue-100"}
+          `}
+        >
+          {amount.toLocaleString()} đ
+        </button>
+      ))}
+    </div>
+
+    <DialogFooter className="mt-6">
+      <Button
+        className="w-full "
+        disabled={selectedAmount === 0}
+        onClick={() => handleTopup(selectedAmount)}
+      >
+        Nạp {selectedAmount ? selectedAmount.toLocaleString() : ""} đ
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
 
       {/* Điểm danh hàng ngày */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/50">

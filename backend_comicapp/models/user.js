@@ -57,6 +57,20 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 0,
     },
+    role: {
+      type: DataTypes.ENUM('user', 'admin'),
+      allowNull: false,
+      defaultValue: 'user',
+    },
+    status: {
+      type: DataTypes.ENUM('active', 'suspended', 'deleted'),
+      allowNull: false,
+      defaultValue: 'active',
+    },
+    lastLogin: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   }, {
     hooks: {
       beforeCreate: async (user) => {

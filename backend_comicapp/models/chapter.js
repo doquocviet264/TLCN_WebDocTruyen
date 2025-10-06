@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     cost:{
       type: DataTypes.INTEGER, 
-      defaultValue: 1,
+      defaultValue: 0,
     },
     isLocked: { 
       type: DataTypes.BOOLEAN, 

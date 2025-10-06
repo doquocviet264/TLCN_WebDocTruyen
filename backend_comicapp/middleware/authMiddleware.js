@@ -27,7 +27,13 @@ const protect = async (req, res, next) => {
     return res.status(401).json({ message: "Không có token" });
   }
 };
-
+const isAdmin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    return res.status(403).json({ message: 'Bạn không có quyền admin' });
+  }
+};
 // Middleware tùy chọn, nếu có token thì xác thực, không có thì bỏ qua
 const optionalAuth = async (req, res, next) => {
   req.user = null; // mặc định
@@ -49,4 +55,4 @@ const optionalAuth = async (req, res, next) => {
 };
 
 
-module.exports = { protect, optionalAuth };
+module.exports = { protect, optionalAuth, isAdmin };

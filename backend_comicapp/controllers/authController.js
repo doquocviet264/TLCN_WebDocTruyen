@@ -134,11 +134,11 @@ const login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ msg: 'Thông tin đăng nhập không hợp lệ' });
     }
-
-    const payload = { user: { userId: user.userId } };
+    await user.update({ lastLogin: new Date() });
+    const payload = { user: { userId: user.userId, role: user.role  } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '12h' });
 
-    res.json({ token });
+    res.json({ token, role: user.role  });
   } catch (err) {
     console.error('Lỗi khi đăng nhập:', err);
     res.status(500).json({ msg: 'Lỗi máy chủ' });

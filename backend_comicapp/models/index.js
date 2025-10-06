@@ -8,6 +8,7 @@ db.sequelize = sequelize;
 // Load các model và truyền sequelize, DataTypes vào
 db.User = require('./user.js')(sequelize, DataTypes);
 db.Comic = require('./comic.js')(sequelize, DataTypes);
+db.AlternateName = require('./alternateName.js')(sequelize, DataTypes);
 db.Genre = require('./genre.js')(sequelize, DataTypes);
 db.Chapter = require('./chapter.js')(sequelize, DataTypes);
 db.Comment = require('./comment.js')(sequelize, DataTypes);
@@ -17,6 +18,8 @@ db.ReadingHistory = require('./readingHistory.js')(sequelize, DataTypes);
 db.Wallet = require('./wallet.js')(sequelize, DataTypes);
 db.CheckIn = require('./checkIn.js')(sequelize, DataTypes);
 db.Quest = require('./quest.js')(sequelize, DataTypes);
+db.Notification = require('./notification.js')(sequelize, DataTypes);
+db.Report = require('./report.js')(sequelize, DataTypes);
 // Định nghĩa các bảng trung gian và thiết lập mối quan hệ
 db.ComicFollow = sequelize.define('ComicFollows', {
     followId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true }
@@ -51,7 +54,9 @@ db.UserQuest = sequelize.define('UserQuests', {
 // Comic <-> Genre (Many-to-Many)
 db.Comic.belongsToMany(db.Genre, { through: 'GenreComic', foreignKey: 'comicId', timestamps: false });
 db.Genre.belongsToMany(db.Comic, { through: 'GenreComic', foreignKey: 'genreId', timestamps: false });
-
+// Quan hệ Comic <-> AlternateName (Một Comic có nhiều tên khác)
+db.Comic.hasMany(db.AlternateName, { foreignKey: 'comicId' });
+db.AlternateName.belongsTo(db.Comic, { foreignKey: 'comicId' });
 // User <-> Comic (Follows - Many-to-Many)
 db.User.belongsToMany(db.Comic, { through: db.ComicFollow, as: 'FollowingComics', foreignKey: 'userId'});
 db.Comic.belongsToMany(db.User, { through: db.ComicFollow, as: 'Followers', foreignKey: 'comicId'});
@@ -130,5 +135,13 @@ db.UserQuest.belongsTo(db.User, { foreignKey: 'userId' });
 db.UserQuest.belongsTo(db.Quest, { foreignKey: 'questId' });
 db.User.hasMany(db.UserQuest, { foreignKey: 'userId' });
 db.Quest.hasMany(db.UserQuest, { foreignKey: 'questId' });
+
+// User <-> Notification (1 - N)
+db.User.hasMany(db.Notification, { foreignKey: 'userId', as: 'notifications' });
+db.Notification.belongsTo(db.User, { foreignKey: 'userId', as: 'user' });
+// User <-> Report (1 - N)
+db.User.hasMany(db.Report, { foreignKey: 'userId', as: 'reports' });
+db.Report.belongsTo(db.User, { foreignKey: 'userId', as: 'user' });
+
 //Export đối tượng db
 module.exports = db;

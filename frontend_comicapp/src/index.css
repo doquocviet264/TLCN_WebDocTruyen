@@ -29,7 +29,7 @@
   --destructive-foreground: oklch(0.98 0 0);
 
   --border: oklch(0.85 0.01 260);
-  --input: oklch(0.96 0.01 260);
+  --input: oklch(0.65 0.15 250);
   --ring: oklch(0.65 0.15 250 / 0.5);
 
   --chart-1: oklch(0.65 0.15 250);
@@ -82,7 +82,7 @@
   --destructive-foreground: oklch(0.98 0 0);
 
   --border: oklch(0.45 0.02 260); /* Viền sáng hơn */
-  --input: oklch(0.25 0.02 260);
+  --input: oklch(0.72 0.15 250);
   --ring: oklch(0.72 0.15 250 / 0.6);
 
   /* Chart palette xanh */

@@ -36,7 +36,8 @@ export interface Comic {
   title: string
   cover: string
   status: string
-  progress: string
+  lastReadChapter: number
+  lastChapterNumber: number
   lastRead: string
 }
 export interface DailyCheckinItem {

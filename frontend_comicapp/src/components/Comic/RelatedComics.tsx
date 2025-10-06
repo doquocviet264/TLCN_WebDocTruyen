@@ -7,10 +7,10 @@ interface RelatedComic {
   slug: string;
   title: string;
   image: string;
-  rating: number;
+  rating: string;
   views: number;
   latestChapterNumber: number;
-  latestChapterTime: string; // Có thể là ISO string hoặc định dạng khác
+  latestChapterTime: string; 
 }
 
 interface RelatedComicsProps {
@@ -18,11 +18,13 @@ interface RelatedComicsProps {
 }
 
 export default function RelatedComics({ relatedComics}: RelatedComicsProps) {
-  const formatViews = (views: number) => {
-    if (views >= 1000000) return (views / 1000000).toFixed(1) + "M lượt xem";
-    if (views >= 1000) return (views / 1000).toFixed(1) + "K lượt xem";
-    return views.toLocaleString() + " lượt xem";
+  const formatViews = (views?: number | null) => {
+    const v = views || 0;
+    if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + "M lượt xem";
+    if (v >= 1_000) return (v / 1_000).toFixed(1) + "K lượt xem";
+    return v.toLocaleString() + " lượt xem";
   };
+
 
   const timeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -65,7 +67,7 @@ export default function RelatedComics({ relatedComics}: RelatedComicsProps) {
                   <div className="flex items-center text-sm text-muted-foreground mt-1">
                     <div className="flex items-center mr-3">
                       <Star className="h-3 w-3 fill-yellow-500 text-yellow-500 mr-1" />
-                      <span>{comic.rating.toFixed(1)}</span>
+                      <span>{comic.rating}</span>
                     </div>
                     <span>{formatViews(comic.views)}</span>
                   </div>

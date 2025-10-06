@@ -1,5 +1,5 @@
 const db = require('../models');
-
+const { updateQuestProgress } = require('../services/updateQuestService');
 const updateReadingHistory = async (req, res) => {
     try {
         const userId = req.user.userId;
@@ -28,7 +28,7 @@ const updateReadingHistory = async (req, res) => {
                 lastReadAt: new Date()
             });
         }
-        
+        await updateQuestProgress(userId, 'reading');
         res.status(200).json({ message: "Cập nhật lịch sử đọc thành công" });
 
     } catch (error) {

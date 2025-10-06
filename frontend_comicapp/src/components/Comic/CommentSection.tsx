@@ -7,6 +7,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "react-toastify";
 import axios from "axios";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 
 interface Comment {
   commentId: number;
@@ -40,6 +50,13 @@ interface PostCommentResponse {
   replies?: Comment[];
 }
 
+const reportTypeLabels: Record<string, string> = {
+  spam: "Spam / Quảng cáo",
+  inappropriate: "Nội dung phản cảm",
+  fake: "Thông tin sai lệch",
+  harassment: "Quấy rối / xúc phạm",
+  other: "Khác",
+};
 const getAuthToken = () => localStorage.getItem("token");
 
 export default function CommentSection({ comicId, comicSlug }: CommentSectionProps) {
@@ -52,7 +69,10 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [showReplies, setShowReplies] = useState<Record<number, boolean>>({});
-
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportCommentId, setReportCommentId] = useState<number | null>(null);
+  const [reportType, setReportType] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
   useEffect(() => {
     const fetchComments = async () => {
       setLoading(true);
@@ -74,6 +94,17 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
     };
     if (comicSlug) fetchComments();
   }, [comicSlug, page]);
+  const openReportDialog = (commentId: number) => {
+    setReportCommentId(commentId);
+    setShowReportDialog(true);
+  };
+
+  const closeReportDialog = () => {
+    setShowReportDialog(false);
+    setReportCommentId(null);
+    setReportType("");
+    setReportDescription("");
+  };
 
   const handleSubmitComment = async () => {
     if (!newComment.trim()) return;
@@ -147,6 +178,40 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
       );
       console.error("Failed to like comment:", error);
       toast.error("Thích bình luận thất bại.");
+    }
+  };
+  const handleSubmitReport = async () => {
+    if (!reportType || !reportDescription.trim()) {
+      toast.warning("Vui lòng chọn loại lỗi và nhập mô tả!");
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      toast.error("Vui lòng đăng nhập để gửi báo cáo!");
+      return;
+    }
+
+    try {
+      const reportTitle = reportTypeLabels[reportType];
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/reports`,
+        {
+          title: reportTitle,
+          description: reportDescription,
+          type: "comment",
+          userId: 0,
+          reportId: reportCommentId,
+          category: reportType,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success("Báo cáo đã được gửi. Cảm ơn bạn!");
+      closeReportDialog();
+    } catch (error) {
+      console.error("Lỗi khi gửi báo cáo:", error);
+      toast.error("Không thể gửi báo cáo. Vui lòng thử lại sau!");
     }
   };
 
@@ -247,9 +312,13 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>Báo cáo</DropdownMenuItem>
-                          <DropdownMenuItem>Chặn người dùng</DropdownMenuItem>
-                        </DropdownMenuContent>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => openReportDialog(comment.commentId)}
+                        >
+                          Báo cáo bình luận
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
                   </div>
@@ -367,6 +436,54 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
           ))}
         </div>
       </div>
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Báo cáo bình luận</DialogTitle>
+          <DialogDescription>
+            Vui lòng chọn loại lỗi và nhập nội dung mô tả cụ thể.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-4">
+          <div className="space-y-2">
+            <Label htmlFor="type">Loại lỗi</Label>
+            <Select value={reportType} onValueChange={setReportType}>
+              <SelectTrigger id="type">
+                <SelectValue placeholder="Chọn loại lỗi" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="spam">Spam / Quảng cáo</SelectItem>
+                <SelectItem value="inappropriate">Nội dung phản cảm</SelectItem>
+                <SelectItem value="fake">Thông tin sai lệch</SelectItem>
+                <SelectItem value="harassment">Quấy rối / xúc phạm</SelectItem>
+                <SelectItem value="other">Khác</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Mô tả chi tiết</Label>
+            <Textarea
+              id="description"
+              placeholder="Nhập nội dung mô tả chi tiết..."
+              value={reportDescription}
+              onChange={(e) => setReportDescription(e.target.value)}
+              className="min-h-[100px]"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={closeReportDialog}>
+            Hủy
+          </Button>
+          <Button onClick={handleSubmitReport}>Gửi báo cáo</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     </Card>
+    
   );
 }

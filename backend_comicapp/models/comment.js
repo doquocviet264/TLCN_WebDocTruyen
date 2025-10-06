@@ -13,6 +13,10 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.INTEGER,
             allowNull: false,
         },
+        chapterId: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
         content: {
             type: DataTypes.TEXT,
             allowNull: false,

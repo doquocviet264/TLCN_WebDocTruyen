@@ -73,7 +73,6 @@ class QuestController {
       const userQuestsData = selectedQuests.map(quest => ({
         userId: userId,
         questId: quest.questId,
-        assignedDate: date,
         progress: 0,
         isClaimed: false
       }));

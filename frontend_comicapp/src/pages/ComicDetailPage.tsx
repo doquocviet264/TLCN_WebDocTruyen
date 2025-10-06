@@ -40,59 +40,19 @@ interface RelatedComic {
   slug: string;
   title: string;
   image: string;
-  rating: number;
+  rating: string;
   views: number;
   latestChapterNumber: number;
   latestChapterTime: string;
 }
-const sampleRelatedComics: RelatedComic[] = [
-  {
-    id: "1",
-    slug: "one-piece",
-    title: "One Piece",
-    image: "https://example.com/onepiece.jpg",
-    rating: 4.8,
-    views: 1200000,
-    latestChapterNumber: 1090,
-    latestChapterTime: "2025-09-01T10:00:00Z",
-  },
-  {
-    id: "2",
-    slug: "naruto",
-    title: "Naruto",
-    image: "https://example.com/naruto.jpg",
-    rating: 4.7,
-    views: 950000,
-    latestChapterNumber: 700,
-    latestChapterTime: "2025-08-25T14:30:00Z",
-  },
-  {
-    id: "3",
-    slug: "attack-on-titan",
-    title: "Attack on Titan",
-    image: "https://example.com/aot.jpg",
-    rating: 4.9,
-    views: 850000,
-    latestChapterNumber: 139,
-    latestChapterTime: "2025-08-20T08:00:00Z",
-  },
-  {
-    id: "4",
-    slug: "demon-slayer",
-    title: "Demon Slayer",
-    image: "https://example.com/demonslayer.jpg",
-    rating: 4.6,
-    views: 780000,
-    latestChapterNumber: 205,
-    latestChapterTime: "2025-08-18T12:00:00Z",
-  },
-];
+
 const getAuthToken = () => localStorage.getItem("token");
 export default function ComicDetailPage() {
   const { slug } = useParams();
   const [comic, setComic] = useState<Comic | null>(null);
   const [loading, setLoading] = useState(true); 
   const [error, setError] = useState<string | null>(null);
+  const [relatedComics, setRelatedComics] = useState<RelatedComic[]>([]);
   useEffect(() => {
     if (!slug) return;
 
@@ -103,6 +63,9 @@ export default function ComicDetailPage() {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
         const response = await axios.get<Comic>(`${import.meta.env.VITE_API_URL}/comics/${slug}`, { headers });
         setComic(response.data);
+        // Gọi API truyện liên quan
+        const relatedRes = await axios.get<RelatedComic[]>(`${import.meta.env.VITE_API_URL}/comics/${slug}/related`, { headers });
+        setRelatedComics(relatedRes.data);
       } catch (err: unknown) {
         setError("Không thể tải dữ liệu truyện.");
         console.error(err);
@@ -158,7 +121,7 @@ export default function ComicDetailPage() {
           </div>
           <div className="lg:col-span-4 space-y-8">
             <RatingWidget comicId={comic.id}  /> 
-            <RelatedComics relatedComics={sampleRelatedComics} />
+            <RelatedComics relatedComics={relatedComics} />
           </div>
         </div>
       </main>

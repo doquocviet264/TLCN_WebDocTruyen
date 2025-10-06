@@ -37,6 +37,24 @@ const getComicDetails = async (slug) => {
         return null;
     }
 };
+const syncAlternateNames = async (comicInstance, alternateNames, transaction) => {
+    if (!alternateNames || alternateNames.length === 0) {
+        return; // Bỏ qua nếu không có tên khác
+    }
+
+    for (const name of alternateNames) {
+        if (name && name.trim() !== '') { // Chỉ lưu các tên hợp lệ
+            // Tìm hoặc tạo mới để tránh trùng lặp
+            await db.AlternateName.findOrCreate({
+                where: {
+                    comicId: comicInstance.comicId,
+                    name: name.trim(),
+                },
+                transaction,
+            });
+        }
+    }
+};
 
 /**
  * Lấy danh sách URL ảnh của một chương từ API
@@ -174,6 +192,8 @@ const syncComicsFromPage = async (page = 1) => {
                     await comicInstance.setGenres(genreInstances, { transaction });
                 }
 
+                await syncAlternateNames(comicInstance, comicDetail.origin_name, transaction);
+
                 const chapterSyncResult = await syncChaptersForComic(comicInstance, comicDetail.chapters, transaction);
 
                 await transaction.commit();
@@ -199,8 +219,8 @@ const syncComicsFromPage = async (page = 1) => {
 
 // === HÀM KHỞI ĐỘNG SCRIPT ===
 const runSync = async () => {
-    const startPage = 2;
-    const endPage = 3; // Ví dụ: lấy 2 trang
+    const startPage = 3;
+    const endPage = 4; // Ví dụ: lấy 2 trang
 
     console.log(`🔥 Bắt đầu quá trình đồng bộ từ trang ${startPage} đến ${endPage}.`);
     

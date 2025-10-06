@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ComicCard } from '../components/ComicCard';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
+import {useNavigate } from 'react-router-dom';
 // Interface cho dữ liệu từ API tài khoản
 interface AccountComic {
   id: number;
@@ -39,6 +39,7 @@ export default function MyReadingHistory() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [accountComics, setAccountComics] = useState<AccountComic[]>([]);
   const [deviceComics, setDeviceComics] = useState<DeviceComicWithHistory[]>([]);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState({
     account: false,
     device: false
@@ -192,7 +193,9 @@ const fetchDeviceHistory = async () => {
 
   const handleLoginRedirect = () => {
     // Chuyển hướng đến trang đăng nhập
-    window.location.href = '/auth/login';
+    navigate(
+        `/auth/login?redirect=${encodeURIComponent(window.location.pathname)}`
+    );
   };
 
   return (
