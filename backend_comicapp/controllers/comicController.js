@@ -40,9 +40,11 @@ const getComicDetails = async (req, res) => {
         // Lấy thông tin rating, follow tương tự như trước
         const followers = await comic.getFollowers();
         const ratings = await comic.getComicRatings();
-        
+        const likers = await comic.getLikers();
         const followerCount = followers.length;
+        const likerCount = likers.length;
         const isFollowing = userId ? followers.some(f => f.userId === userId) : false;
+        const isFavorite = userId ? likers.some(f => f.userId === userId) : false;
         const totalScore = ratings.reduce((sum, r) => sum + r.score, 0);
         const rating = ratings.length > 0 ? (totalScore / ratings.length)  : 0; 
 
@@ -60,6 +62,8 @@ const getComicDetails = async (req, res) => {
             reviewCount: ratings.length,
             followers: followerCount,
             isFollowing: isFollowing,
+            likers: likerCount,
+            isFavorite: isFavorite,
             chapters: comic.Chapters.map(c => ({
                 id: c.chapterId,
                 number: c.chapterNumber,
@@ -112,6 +116,44 @@ const toggleFollow = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi toggleFollow:', error);
+    return res.status(500).json({ message: 'Lỗi máy chủ' });
+  }
+};
+// Theo dõi / Bỏ theo dõi truyện
+const toggleLike = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const userId = req.user.userId; // từ middleware protect
+
+    // Tìm comic theo slug
+    const comic = await Comic.findOne({
+      where: { slug },
+      include: [{
+        model: User,
+        as: 'Likers', // tên association trong index.js
+        attributes: ['userId'],
+      }],
+    });
+
+    if (!comic) {
+      return res.status(404).json({ message: 'Không tìm thấy truyện' });
+    }
+
+    // Kiểm tra xem user đã like chưa
+    const isFavorite = comic.Likers.some(u => u.userId === userId);
+
+    if (isFavorite) {
+      // Hủy like
+      await comic.removeLiker(userId);
+      return res.json({ message: 'Hủy thích thành công', isFavorite: false });
+    } else {
+      // like
+      await comic.addLiker(userId);
+      return res.json({ message: 'Thích thành công', isFavorite: true });
+    }
+
+  } catch (error) {
+    console.error('Lỗi toggleLike:', error);
     return res.status(500).json({ message: 'Lỗi máy chủ' });
   }
 };
@@ -1044,6 +1086,7 @@ const getComicByIdForAdmin = async (req, res) => {
 module.exports = {
     getComicDetails,
     toggleFollow,
+    toggleLike,
     getNewlyUpdatedComics,
     getFeaturedComics,
     getRankings,

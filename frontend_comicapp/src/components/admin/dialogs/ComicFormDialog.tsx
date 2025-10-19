@@ -212,6 +212,12 @@ export default function ComicFormDialog({ mode, comic, onSave }: ComicFormDialog
             <label className="block text-sm font-medium mb-1">Tên truyện</label>
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </div>
+          {/* Tác giả */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Tác giả</label>
+            <Input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />
+          </div>
+
 
           {/* Alias */}
           <div>
@@ -290,9 +296,19 @@ export default function ComicFormDialog({ mode, comic, onSave }: ComicFormDialog
             <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={4} />
           </div>
 
-          <Button onClick={handleSave} disabled={loading} className="w-full">
-            {loading ? "Đang lưu..." : mode === "add" ? "Lưu truyện mới" : "Lưu thay đổi"}
-          </Button>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              Huỷ
+            </Button>
+
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? "Đang lưu..." : mode === "add" ? "Lưu truyện mới" : "Lưu thay đổi"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

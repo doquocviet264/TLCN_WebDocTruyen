@@ -20,7 +20,7 @@ interface UserRatingResponse {
 }
 
 interface RatingWidgetProps {
-  comicId: string;
+  comicId: number;
   onRatingUpdate?: (rating: number) => void;
 }
 

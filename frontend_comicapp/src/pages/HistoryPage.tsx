@@ -14,7 +14,16 @@ interface AccountComic {
   chapterTitle: string;
   lastReadAt: string;
 }
-
+interface ComicHistory {
+  lastReadChapterId: number;
+  lastReadChapterNumber: number;
+  lastReadAt: string;
+}
+interface Comic {
+  title: string;
+  slug: string;
+  image: string;
+}
 // Interface cho dữ liệu từ thiết bị (kết hợp thông tin từ API và localStorage)
 interface DeviceComicWithHistory {
   slug: string;
@@ -33,7 +42,7 @@ interface ReadingHistoryItem {
   lastReadAt: string;
 }
 
-const HISTORY_KEY = 'reading_history';
+const DETAILED_HISTORY_KEY = 'detailed_reading_history';
 
 export default function MyReadingHistory() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -77,79 +86,65 @@ export default function MyReadingHistory() {
   };
 
   // Lấy dữ liệu từ thiết bị
-const fetchDeviceHistory = async () => {
-  setLoading(prev => ({ ...prev, device: true }));
-  setError(prev => ({ ...prev, device: '' }));
+  const fetchDeviceHistory = async () => {
+      setLoading(prev => ({ ...prev, device: true }));
+      setError(prev => ({ ...prev, device: '' }));
 
-  try {
-    const historyJson = localStorage.getItem(HISTORY_KEY);
-    if (!historyJson) {
-      setDeviceComics([]);
-      return;
-    }
-
-    const history: ReadingHistoryItem[] = JSON.parse(historyJson);
-    const comics: DeviceComicWithHistory[] = [];
-
-    // Nhóm các item theo comicId và lấy item mới nhất cho mỗi comic
-    const comicMap = new Map<number, ReadingHistoryItem>();
-
-    for (const item of history) {
-      const existingItem = comicMap.get(item.comicId);
-      
-      // Nếu chưa có hoặc có item cũ hơn, thì cập nhật với item mới hơn
-      if (!existingItem || new Date(item.lastReadAt) > new Date(existingItem.lastReadAt)) {
-        comicMap.set(item.comicId, item);
-      }
-    }
-
-    // Chuyển Map thành Array và lặp
-    const uniqueComics = Array.from(comicMap.entries());
-
-    // Lấy thông tin chi tiết cho từng comic duy nhất
-    for (const [comicId, item] of uniqueComics) {
       try {
-        const response = await axios.get<{slug: string; title: string; image: string}>(`${import.meta.env.VITE_API_URL}/comics/id/${comicId}`);
-        
-        // Kiểm tra kiểu dữ liệu trước khi thêm vào mảng
-        if (isValidDeviceComic(response.data)) {
-          comics.push({
-            ...response.data,
-            id: item.comicId,
-            chapterNumber: item.chapterNumber,
-            lastReadAt: item.lastReadAt
-          });
-        } else {
-          console.warn(`Dữ liệu truyện không hợp lệ cho comicId: ${comicId}`, response.data);
-        }
+          const localHistoryJson = localStorage.getItem(DETAILED_HISTORY_KEY);
+          if (!localHistoryJson) {
+              setDeviceComics([]);
+              return;
+          }
+
+          const historyObject: { [comicId: string]: ComicHistory } = JSON.parse(localHistoryJson);
+
+          // 1. Chuẩn bị dữ liệu từ localStorage
+          const sortedHistory = Object.entries(historyObject)
+              .map(([comicId, comicData]) => ({
+                  id: Number(comicId),
+                  lastReadAt: comicData.lastReadAt,
+                  chapterNumber: comicData.lastReadChapterNumber,
+              }))
+              .sort((a, b) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime());
+
+          // 2. Gọi API để lấy thông tin chi tiết MỘT CÁCH SONG SONG (hiệu quả hơn vòng lặp)
+          const historyWithDetails = await Promise.all(
+              sortedHistory.map(async (historyItem) => {
+                  try {
+                      const response = await axios.get<Comic>(
+                          `${import.meta.env.VITE_API_URL}/comics/id/${historyItem.id}`
+                      );
+                      
+                      // 3. Kết hợp dữ liệu từ localStorage và API
+                      return {
+                          id: historyItem.id,
+                          title: response.data.title,
+                          slug: response.data.slug,
+                          image: response.data.image,
+                          chapterNumber: historyItem.chapterNumber,
+                          lastReadAt: historyItem.lastReadAt,
+                      } as DeviceComicWithHistory;
+
+                  } catch (err) {
+                      console.error(`Lỗi khi lấy thông tin truyện ID: ${historyItem.id}`, err);
+                      return null; // Trả về null nếu API cho truyện này bị lỗi
+                  }
+              })
+          );
+          
+          const validComics = historyWithDetails.filter((comic): comic is DeviceComicWithHistory => comic !== null);
+
+          setDeviceComics(validComics);
+
       } catch (err) {
-        console.error(`Lỗi khi lấy thông tin truyện ${comicId}:`, err);
+          console.error('Lỗi khi xử lý lịch sử từ thiết bị:', err);
+          setError(prev => ({ ...prev, device: 'Không thể tải lịch sử từ thiết bị' }));
+          setDeviceComics([]);
+      } finally {
+          setLoading(prev => ({ ...prev, device: false }));
       }
-    }
-
-    // Sắp xếp theo thời gian đọc mới nhất
-    comics.sort((a, b) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime());
-
-    setDeviceComics(comics);
-  } catch (err) {
-    console.error('Lỗi khi xử lý lịch sử từ thiết bị:', err);
-    setError(prev => ({ ...prev, device: 'Không thể tải lịch sử từ thiết bị' }));
-  } finally {
-    setLoading(prev => ({ ...prev, device: false }));
-  }
-};
-
-  // Hàm kiểm tra kiểu dữ liệu DeviceComic
-  const isValidDeviceComic = (data: any): data is {slug: string; title: string; image: string} => {
-    return (
-      typeof data === 'object' &&
-      data !== null &&
-      typeof data.slug === 'string' &&
-      typeof data.title === 'string' &&
-      typeof data.image === 'string'
-    );
   };
-
   // Tự động load dữ liệu khi tab thay đổi
   useEffect(() => {
     fetchDeviceHistory();
@@ -176,13 +171,13 @@ const fetchDeviceHistory = async () => {
       }
     } else if (type === 'device') {
       try {
-        const historyJson = localStorage.getItem(HISTORY_KEY);
+        const historyJson = localStorage.getItem(DETAILED_HISTORY_KEY);
         if (!historyJson) return;
 
         const history: ReadingHistoryItem[] = JSON.parse(historyJson);
         const updatedHistory = history.filter(item => item.comicId !== comicId);
 
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
+        localStorage.setItem(DETAILED_HISTORY_KEY, JSON.stringify(updatedHistory));
         setDeviceComics(prev => prev.filter(c => c.id !== comicId));
       } catch (err) {
         console.error('Lỗi xoá lịch sử device:', err);
@@ -190,7 +185,11 @@ const fetchDeviceHistory = async () => {
     }
   };
 
-
+  const formatNumber = (num: unknown) => {
+    const parsed = typeof num === "number" ? num : Number(num);
+    if (isNaN(parsed)||parsed === 0) return "mới";
+    return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
+  };
   const handleLoginRedirect = () => {
     // Chuyển hướng đến trang đăng nhập
     navigate(
@@ -270,7 +269,7 @@ const fetchDeviceHistory = async () => {
                   title={comic.title}
                   href={`/truyen-tranh/${comic.slug}`}
                   continueReadingText={`${comic.chapterTitle || `Chương ${comic.lastChapter}`}`}
-                  continueReadingUrl={`/truyen-tranh/${comic.slug}/chuong/${comic.lastChapter}`}
+                  continueReadingUrl={`/truyen-tranh/${comic.slug}/chapter/${formatNumber(comic.lastChapter)}`}
                   onDelete={() => handleDelete(comic.id, 'account')}
                 />
               ))}

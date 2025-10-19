@@ -27,6 +27,7 @@ interface Chapter {
 interface ChapterListProps {
   chapters: Chapter[];
   comicSlug: string;
+  comicId?: number;
 }
 
 interface UnlockCheckResponse {
@@ -40,10 +41,20 @@ interface ReadingHistoryItem {
   chapterId: number;
   lastReadAt: string;
 }
+interface ChapterHistory {
+  chapterNumber: number;
+  readAt: string;
+}
 
-const HISTORY_KEY = 'reading_history';
+interface ComicHistory {
+  lastReadChapterId: number;
+  lastReadChapterNumber: number;
+  lastReadAt: string;
+  chapters: { [chapterId: number]: ChapterHistory };
+}
+const DETAILED_HISTORY_KEY = 'detailed_reading_history';
 
-export default function ChapterList({ chapters, comicSlug }: ChapterListProps) {
+export default function ChapterList({ chapters, comicSlug,comicId}: ChapterListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
@@ -53,20 +64,49 @@ export default function ChapterList({ chapters, comicSlug }: ChapterListProps) {
   const [unlockedStatus, setUnlockedStatus] = useState<Record<number, boolean>>({});
   const [isChecking, setIsChecking] = useState(true);
 
-  // State lưu lịch sử đọc
-  const [readHistory, setReadHistory] = useState<ReadingHistoryItem[]>([]);
+  const [readChapterIds, setReadChapterIds] = useState<Set<number>>(new Set());
 
   // Lấy lịch sử đọc từ localStorage
   useEffect(() => {
-    try {
-      const historyJson = localStorage.getItem(HISTORY_KEY);
-      if (historyJson) {
-        setReadHistory(JSON.parse(historyJson));
+    const loadHistory = () => {
+      try {
+        const historyJson = localStorage.getItem(DETAILED_HISTORY_KEY);
+        if (!historyJson) {
+          setReadChapterIds(new Set());
+          return;
+        }
+
+        const historyObj: Record<string, ComicHistory> = JSON.parse(historyJson);
+
+        // Nếu có comicId -> chỉ lấy chương đã đọc của truyện này
+        // Nếu không có comicId -> gom tất cả chapterId đã đọc (vẫn hoạt động đúng)
+        let chapterIds: number[] = [];
+        if (comicId != null && historyObj[String(comicId)]) {
+          const chaptersOfComic = historyObj[String(comicId)].chapters || {};
+          chapterIds = Object.keys(chaptersOfComic).map(id => Number(id));
+        } else {
+          // Quét tất cả comics (fallback khi thiếu comicId)
+          chapterIds = Object.values(historyObj).flatMap(ch =>
+            Object.keys(ch.chapters || {}).map(id => Number(id))
+          );
+        }
+
+        setReadChapterIds(new Set(chapterIds.filter(Number.isFinite)));
+      } catch (error) {
+        console.error("Lỗi khi lấy detailed_reading_history:", error);
+        setReadChapterIds(new Set());
       }
-    } catch (error) {
-      console.error("Lỗi khi lấy lịch sử đọc:", error);
-    }
-  }, []);
+    };
+
+    loadHistory();
+
+    // Đồng bộ khi localStorage thay đổi ở tab khác
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === DETAILED_HISTORY_KEY) loadHistory();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [comicId]);
 
   // useEffect để kiểm tra các chương bị khóa
   useEffect(() => {
@@ -161,7 +201,7 @@ export default function ChapterList({ chapters, comicSlug }: ChapterListProps) {
   }));
 
   const hasReadChapter = (chapterId: number) => {
-    return readHistory.some(item => item.chapterId === chapterId);
+    return readChapterIds.has(chapterId);
   };
 
   return (
@@ -200,7 +240,7 @@ export default function ChapterList({ chapters, comicSlug }: ChapterListProps) {
 
           return (
             <Link
-              key={chapter.number}
+              key={chapter.id}
               to={`/truyen-tranh/${comicSlug}/chapter/${Math.floor(Number(chapter.number))}`}
               className="block"
             >

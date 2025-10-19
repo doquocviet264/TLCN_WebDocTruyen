@@ -51,6 +51,10 @@ export default function ChapterPage() {
   const [readingMode, setReadingMode] = useState<'long-strip' | 'paginated'>('long-strip');
   const [imageWidth, setImageWidth] = useState('max-w-2xl');
   const [currentPage, setCurrentPage] = useState(0);
+  const [isAutoPlayOn, setIsAutoPlayOn] = useState(false); // Bật/tắt tự động chạy
+  const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Tốc độ cuộn (1-10)
+  const [autoPageInterval, setAutoPageInterval] = useState(5); // Thời gian chuyển trang (giây)
+  
   const navigate = useNavigate();
   const { isLoggedIn} = useContext(AuthContext);
 
@@ -100,7 +104,9 @@ export default function ChapterPage() {
       console.error('Lỗi khi kiểm tra trạng thái mở khóa:', error);
     }
   };
-
+  useEffect(() => {
+    setIsAutoPlayOn(false);
+  }, [readingMode]);
   useEffect(() => {
     if (isDarkMode) {
       document.body.classList.add('dark');
@@ -192,6 +198,8 @@ export default function ChapterPage() {
     );
   }
 
+
+
   if (!chapterData) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-900 dark:text-white">
@@ -207,6 +215,7 @@ export default function ChapterPage() {
       </div>
     );
   }
+  
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
@@ -265,6 +274,12 @@ export default function ChapterPage() {
               comicId={chapterData.comicId}
               chapterId={chapterData.id}
               chapterNumber={chapterData.chapterNumber}
+
+              isAutoPlayOn={isAutoPlayOn}
+              autoScrollSpeed={autoScrollSpeed}
+              autoPageInterval={autoPageInterval}
+              setIsAutoPlayOn={setIsAutoPlayOn} 
+              
             />
           )}
         </main>
@@ -288,6 +303,13 @@ export default function ChapterPage() {
           setReadingMode={setReadingMode}
           imageWidth={imageWidth}
           setImageWidth={setImageWidth}
+
+          isAutoPlayOn={isAutoPlayOn}
+          setIsAutoPlayOn={setIsAutoPlayOn}
+          autoScrollSpeed={autoScrollSpeed}
+          setAutoScrollSpeed={setAutoScrollSpeed}
+          autoPageInterval={autoPageInterval}
+          setAutoPageInterval={setAutoPageInterval}
         />
         <ReportDialog isOpen={isReportOpen} onOpenChange={setIsReportOpen} />
         <CommentsSheet isOpen={isCommentsOpen} onOpenChange={setIsCommentsOpen} />

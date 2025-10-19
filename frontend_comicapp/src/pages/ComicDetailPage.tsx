@@ -20,7 +20,7 @@ interface Chapter {
 }
 
 interface Comic {
-  id: string;
+  id: number;
   slug: string;
   title: string;
   author: string;
@@ -31,7 +31,9 @@ interface Comic {
   rating: number;
   reviewCount: number;
   followers: number;
+  liker: number;
   isFollowing: boolean;
+  isFavorite: boolean;
   description: string;
   chapters: Chapter[];
 }
@@ -104,6 +106,32 @@ export default function ComicDetailPage() {
         toast.error("Đã có lỗi xảy ra, vui lòng thử lại.");
     }
   };
+  const handleFavoriteToggle = async () => {
+    if (!comic) return;
+    
+    const token = getAuthToken();
+    if (!token) {
+        toast.error("Vui lòng đăng nhập để thích truyện!");
+        return;
+    }
+
+    const originalComicState = { ...comic };
+    setComic(prev => {
+        if (!prev) return null;
+        const newLikerCount = prev.isFavorite ? prev.liker - 1 : prev.liker + 1;
+        return { ...prev, isFavorite: !prev.isFavorite, liker: newLikerCount };
+    });
+
+    try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/comics/${slug}/like`, {}, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+    } catch (err) {
+        // Hoàn tác nếu API lỗi
+        setComic(originalComicState);
+        toast.error("Đã có lỗi xảy ra, vui lòng thử lại.");
+    }
+  };
 
   if (loading) return <div className="container py-6 text-center">Đang tải trang truyện...</div>;
   if (error) return <div className="container py-6 text-center text-red-500">{error}</div>;
@@ -114,9 +142,9 @@ export default function ComicDetailPage() {
       <main className="flex-1 container px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-11 gap-8">
           <div className="lg:col-span-7 space-y-8">
-            <ComicHeader comic={comic} onFollowToggle={handleFollowToggle} />
+            <ComicHeader comic={comic} firstChapter={comic.chapters[0].number} lastChapter={comic.chapters[comic.chapters.length - 1].number} onFollowToggle={handleFollowToggle} onFavoriteToggle={handleFavoriteToggle}/>
             <ComicDescription description={comic.description} />
-            <ChapterList chapters={comic.chapters} comicSlug={comic.slug} />
+            <ChapterList chapters={comic.chapters} comicSlug={comic.slug} comicId={comic.id}/>
             <CommentSection comicId={comic.id.toString()} comicSlug={comic.slug}/>
           </div>
           <div className="lg:col-span-4 space-y-8">

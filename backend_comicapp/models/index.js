@@ -24,6 +24,9 @@ db.Report = require('./report.js')(sequelize, DataTypes);
 db.ComicFollow = sequelize.define('ComicFollows', {
     followId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true }
 }, { tableName: 'ComicFollows', timestamps: true, updatedAt: false, createdAt: 'followDate' });
+db.ComicLike = sequelize.define('ComicLikes', {
+    likeId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true }
+}, { tableName: 'ComicLikes', timestamps: true, updatedAt: false, createdAt: 'likeDate' });
 
 db.ComicRating = sequelize.define('ComicRatings', {
   ratingId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -60,6 +63,9 @@ db.AlternateName.belongsTo(db.Comic, { foreignKey: 'comicId' });
 // User <-> Comic (Follows - Many-to-Many)
 db.User.belongsToMany(db.Comic, { through: db.ComicFollow, as: 'FollowingComics', foreignKey: 'userId'});
 db.Comic.belongsToMany(db.User, { through: db.ComicFollow, as: 'Followers', foreignKey: 'comicId'});
+// User <-> Comic (Likes - Many-to-Many)
+db.User.belongsToMany(db.Comic, { through: db.ComicLike, as: 'LikedComics', foreignKey: 'userId'});
+db.Comic.belongsToMany(db.User, { through: db.ComicLike, as: 'Likers', foreignKey: 'comicId'});
 
 // User <-> Comic (Ratings - One-to-Many on User/Comic side)
 db.Comic.hasMany(db.ComicRating, { foreignKey: 'comicId' });
