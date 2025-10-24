@@ -1,6 +1,25 @@
 // syncComics.js
+require('dotenv').config();
+
 const axios = require('axios');
-const db = require('./models/index');
+const { Sequelize, DataTypes } = require('sequelize');
+
+// 1) KHỞI TẠO sequelize từ .env
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,        // nếu có
+    dialect: 'mysql',                 // chỉnh theo DB của bạn
+    logging: false,
+  }
+);
+
+// 2) GỌI FACTORY để lấy 'db' đã init models + associations
+const initModels = require('./src/models/index'); // <- file bạn gửi
+const db = initModels(sequelize, DataTypes);
 
 // === CÁC HÀM HỖ TRỢ ===
 

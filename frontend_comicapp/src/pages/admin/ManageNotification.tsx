@@ -1,88 +1,112 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import axios from "axios"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Bell, Send, Clock } from "lucide-react"
+import { Send, Clock } from "lucide-react"
 import { toast } from "react-toastify"
+
+type NotificationCategory = "promotion" | "system"
 
 interface Notification {
   notificationId: number
   title: string
-  message: string
-  category: string
-  isRead: boolean
+  message?: string
+  category: NotificationCategory
+  audienceType: "global" | "direct"
   createdAt: string
 }
 
-// 🧩 Mock data mẫu
-const mockNotifications: Notification[] = [
-  {
-    notificationId: 1,
-    title: "Cập nhật chương mới!",
-    message: "Truyện 'Thế Giới Phép Thuật' đã ra chương 46, đọc ngay nhé!",
-    category: "comic_update",
-    isRead: false,
-    createdAt: "2025-10-05T10:30:00",
-  },
-  {
-    notificationId: 2,
-    title: "Khuyến mãi nạp xu 20%",
-    message: "Nạp xu hôm nay nhận thêm 20% giá trị. Thời gian: 5–10/10/2025.",
-    category: "promotion",
-    isRead: true,
-    createdAt: "2025-10-04T09:10:00",
-  },
-  {
-    notificationId: 3,
-    title: "Tác giả bạn theo dõi đã đăng truyện mới",
-    message: "Tác giả 'Nguyễn Văn A' vừa phát hành truyện 'Anh Hùng Không Muốn Cứu Thế Giới'.",
-    category: "follow",
-    isRead: false,
-    createdAt: "2025-10-03T14:55:00",
-  },
-  {
-    notificationId: 4,
-    title: "Cập nhật hệ thống",
-    message: "Hệ thống sẽ bảo trì lúc 00:00 ngày 10/10 để nâng cấp hiệu năng.",
-    category: "system",
-    isRead: true,
-    createdAt: "2025-10-02T23:00:00",
-  },
-]
+interface Meta {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
+interface ApiResponse<T> {
+  success: boolean
+  data: T
+  meta?: Meta
+}
+
+const getToken = () => localStorage.getItem("token") // đổi nếu bạn lưu token khác
 
 export default function ManageNotification() {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [meta, setMeta] = useState<Meta | null>(null)
   const [title, setTitle] = useState("")
   const [message, setMessage] = useState("")
-  const [category, setCategory] = useState("system")
+  const [category, setCategory] = useState<NotificationCategory>("system")
   const [loading, setLoading] = useState(false)
+  const [loadingList, setLoadingList] = useState(false)
+  const [page, setPage] = useState(1)
+  const limit = 20
 
-  const handleCreate = () => {
-    if (!title || !message) {
-      toast.warn("Vui lòng nhập đủ tiêu đề và nội dung")
+  const fetchList = async (pageNum = 1) => {
+    try {
+      setLoadingList(true)
+      const res = await axios.get<ApiResponse<Notification[]>>(`${import.meta.env.VITE_API_URL}/admin/notifications`, {
+        params: { limit, page: pageNum },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken() || ""}`,
+        },
+      })
+      if (!res.data.success) throw new Error("API trả về success=false")
+      setNotifications(res.data.data || [])
+      setMeta(res.data.meta || null)
+    } catch (err) {
+      console.error(err)
+      toast.error("Không tải được danh sách thông báo")
+    } finally {
+      setLoadingList(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchList(page)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page])
+
+  const handleCreate = async () => {
+    if (!title.trim()) {
+      toast.warn("Vui lòng nhập tiêu đề")
       return
     }
-
-    const newNotification: Notification = {
-      notificationId: notifications.length + 1,
-      title,
-      message,
-      category,
-      isRead: false,
-      createdAt: new Date().toISOString(),
+    setLoading(true)
+    try {
+      const payload = {
+        category,
+        title: title.trim(),
+        ...(message.trim() ? { message: message.trim() } : {}),
+      }
+      const { data: res } = await axios.post<ApiResponse<Notification>>(`${import.meta.env.VITE_API_URL}/admin/notifications`, payload, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken() || ""}`,
+        },
+      })
+      if (!res?.success) throw new Error("Tạo thông báo thất bại")
+      const created: Notification = res.data
+      setNotifications((prev) => [created, ...prev])
+      setTitle("")
+      setMessage("")
+      setCategory("system")
+      toast.success("Đã tạo thông báo mới!")
+    } catch (err) {
+      console.error(err)
+      toast.error("Tạo thông báo thất bại")
+    } finally {
+      setLoading(false)
     }
-
-    setNotifications([newNotification, ...notifications])
-    setTitle("")
-    setMessage("")
-    setCategory("system")
-    toast.success("Đã tạo thông báo mới!")
   }
 
   const formatDate = (date: string) => new Date(date).toLocaleString("vi-VN")
+  const renderCategory = (c: NotificationCategory) => (c === "promotion" ? "Khuyến mãi" : "Hệ thống")
 
   return (
     <div className="space-y-6">
@@ -91,47 +115,43 @@ export default function ManageNotification() {
         <p className="text-muted-foreground">Tạo và xem các thông báo gửi đến người dùng</p>
       </div>
 
-      {/* Form tạo thông báo */}
       <Card>
         <CardHeader>
           <CardTitle>Tạo Thông báo mới</CardTitle>
-          <CardDescription>Gửi thông báo đến người dùng hoặc toàn hệ thống</CardDescription>
+          <CardDescription>Chỉ hỗ trợ 2 loại: Khuyến mãi & Hệ thống</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input
-            placeholder="Tiêu đề thông báo"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+          <Input placeholder="Tiêu đề thông báo" value={title} onChange={(e) => setTitle(e.target.value)} />
           <Textarea
-            placeholder="Nội dung chi tiết..."
+            placeholder="Nội dung chi tiết (tuỳ chọn)..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             className="min-h-[100px]"
           />
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={(v) => setCategory(v as NotificationCategory)}>
             <SelectTrigger>
               <SelectValue placeholder="Chọn loại thông báo" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="system">Hệ thống</SelectItem>
-              <SelectItem value="comic_update">Cập nhật truyện</SelectItem>
-              <SelectItem value="follow">Theo dõi</SelectItem>
-              <SelectItem value="comment">Bình luận</SelectItem>
               <SelectItem value="promotion">Khuyến mãi</SelectItem>
             </SelectContent>
           </Select>
 
-          <Button onClick={handleCreate} disabled={loading} className="flex items-center gap-2">
-            <Send className="h-4 w-4" /> {loading ? "Đang gửi..." : "Gửi thông báo"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleCreate} disabled={loading} className="flex items-center gap-2">
+              <Send className="h-4 w-4" /> {loading ? "Đang gửi..." : "Gửi thông báo"}
+            </Button>
+            <Button variant="outline" onClick={() => fetchList(page)} disabled={loadingList}>
+              Làm mới danh sách
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Danh sách thông báo */}
       <Card>
         <CardHeader>
-          <CardTitle>Danh sách thông báo ({notifications.length})</CardTitle>
+          <CardTitle>Danh sách thông báo {meta ? `(${meta.total})` : `(${notifications.length})`}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border overflow-x-auto">
@@ -141,24 +161,22 @@ export default function ManageNotification() {
                   <TableHead>Tiêu đề</TableHead>
                   <TableHead>Nội dung</TableHead>
                   <TableHead>Loại</TableHead>
-                  <TableHead>Trạng thái</TableHead>
                   <TableHead>Thời gian</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {notifications.length > 0 ? (
+                {loadingList ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                      Đang tải...
+                    </TableCell>
+                  </TableRow>
+                ) : notifications.length > 0 ? (
                   notifications.map((n) => (
                     <TableRow key={n.notificationId}>
                       <TableCell className="font-medium">{n.title}</TableCell>
-                      <TableCell className="truncate max-w-[350px]">{n.message}</TableCell>
-                      <TableCell className="capitalize">{n.category}</TableCell>
-                      <TableCell>
-                        {n.isRead ? (
-                          <span className="text-green-600 font-medium">Đã đọc</span>
-                        ) : (
-                          <span className="text-yellow-600 font-medium">Chưa đọc</span>
-                        )}
-                      </TableCell>
+                      <TableCell className="truncate max-w-[420px]">{n.message || "-"}</TableCell>
+                      <TableCell>{renderCategory(n.category)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <Clock className="h-4 w-4" />
@@ -169,7 +187,7 @@ export default function ManageNotification() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
                       Không có thông báo nào.
                     </TableCell>
                   </TableRow>
@@ -177,6 +195,32 @@ export default function ManageNotification() {
               </TableBody>
             </Table>
           </div>
+
+          {meta && meta.totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                Trang {meta.page}/{meta.totalPages}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1 || loadingList}
+                >
+                  Trang trước
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => (meta ? Math.min(meta.totalPages, p + 1) : p + 1))}
+                  disabled={!!meta && (page >= meta.totalPages || loadingList)}
+                >
+                  Trang sau
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

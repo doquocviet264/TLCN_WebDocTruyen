@@ -9,8 +9,21 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Trash2, Eye, Star } from "lucide-react";
+import { Search, Trash2, Eye, Star } from "lucide-react";
+import { toast } from "react-toastify";
 import ComicFormDialog, { Comic } from "@/components/admin/dialogs/ComicFormDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
 const statusColors: Record<string, string> = {
   "In Progress": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
   "Completed": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
@@ -32,9 +45,12 @@ interface Meta {
 
 type ApiComicsResponse = {
   success: true;
-  data: Comic[];            
-  meta: Meta; 
+  data: Comic[];
+  meta: Meta;
 };
+
+const API_URL = import.meta.env.VITE_API_URL;
+const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token") || ""}` });
 
 export default function ManageComics() {
   const [comics, setComics] = useState<Comic[]>([]);
@@ -44,21 +60,25 @@ export default function ManageComics() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalComics, setTotalComics] = useState(1);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Comic | null>(null);
+
   const navigate = useNavigate();
+
   const fetchComics = async (page = 1) => {
     try {
       setLoading(true);
       const res = await axios.get<ApiComicsResponse>(
-        `${import.meta.env.VITE_API_URL}/admin/comics?page=${page}`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+        `${API_URL}/admin/comics`,
+        { params: { page }, headers: { ...authHeader() } }
       );
       setComics(res.data.data);
       setTotalPages(res.data.meta.totalPages);
       setCurrentPage(res.data.meta.page);
       setTotalComics(res.data.meta.total);
-      console.log("Comics fetched:", res.data.data);
     } catch (err) {
       console.error("Lỗi khi lấy danh sách comic:", err);
+      toast.error("Không tải được danh sách truyện");
     } finally {
       setLoading(false);
     }
@@ -66,7 +86,28 @@ export default function ManageComics() {
 
   useEffect(() => {
     fetchComics(currentPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await axios.delete(`${API_URL}/admin/comics/${deleteTarget.id}`, {
+        headers: { ...authHeader() },
+      });
+      // Cập nhật list local
+      setComics(prev => prev.filter(c => c.id !== deleteTarget.id));
+      setTotalComics(prev => Math.max(0, prev - 1));
+      toast.success(`Đã xoá: ${deleteTarget.title}`);
+    } catch (err) {
+      console.error("Xoá truyện lỗi:", err);
+      toast.error("Xoá truyện thất bại");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   const filteredComics = comics.filter((comic) => {
     const matchesSearch =
@@ -200,14 +241,42 @@ export default function ManageComics() {
                           }
                         />
 
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          title="Xóa"
-                          onClick={() => console.log("Xóa truyện", comic.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {/* Nút mở confirm */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              title="Xóa"
+                              onClick={() => setDeleteTarget(comic)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Xóa truyện?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Bạn chắc chắn muốn xóa <b>{deleteTarget?.title}</b>? Hành động này sẽ xóa toàn bộ chương,
+                                ảnh, bình luận và dữ liệu liên quan. Không thể hoàn tác.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel
+                                onClick={() => setDeleteTarget(null)}
+                                disabled={deleting}
+                              >
+                                Hủy
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={handleConfirmDelete}
+                                disabled={deleting}
+                              >
+                                {deleting ? "Đang xóa..." : "Xác nhận xóa"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -215,6 +284,7 @@ export default function ManageComics() {
               </TableBody>
             </Table>
           </div>
+
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-4">
@@ -261,7 +331,8 @@ export default function ManageComics() {
               >
                 {">"}
               </Button>
-          </div>)}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

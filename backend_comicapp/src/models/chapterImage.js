@@ -1,7 +1,7 @@
 module.exports = (sequelize, DataTypes) => {
     const ChapterImage = sequelize.define("ChapterImage", {
         imageId: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.BIGINT.UNSIGNED,
             autoIncrement: true,
             primaryKey: true,
         },

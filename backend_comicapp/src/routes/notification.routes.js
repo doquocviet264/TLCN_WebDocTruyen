@@ -2,6 +2,7 @@
 const express = require("express");
 const { models } = require("../db");
 const notificationRepo = require("../repositories/notification.repo");
+const deliveryRepo = require("../repositories/notification-delivery.repo");
 const notificationServiceFactory = require("../services/notification.service");
 const notificationControllerFactory = require("../controllers/notification.controller");
 const validateRequest = require("../validators/validateRequest");
@@ -10,7 +11,7 @@ const { protect } = require("../middlewares/auth");
 
 const router = express.Router();
 
-const notificationService = notificationServiceFactory({ model: models, notificationRepo });
+const notificationService = notificationServiceFactory({ model: models, notificationRepo,deliveryRepo });
 const notificationController = notificationControllerFactory(notificationService);
 
 /**

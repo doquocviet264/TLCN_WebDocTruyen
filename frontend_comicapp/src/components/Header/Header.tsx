@@ -19,6 +19,18 @@ interface Notification {
   createdAt: string;
   isRead: boolean;
 }
+interface ApiNotificationResponse {
+  success: boolean;
+  data: {
+    isRead: boolean;
+    Notification: {
+      notificationId: number;
+      title: string;
+      message: string;
+      createdAt: string;
+    };
+  }[];
+}
 
 interface SearchData {
   comics: Array<{ id: number; slug: string; title: string; image: string; lastChapter: number | string }>;
@@ -84,10 +96,14 @@ export default function Header() {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           signal: ctrl.signal,
         });
-        const json = await res.json();
+        const json:ApiNotificationResponse = await res.json();
         // API envelope: { success: true, data: [...] }
         if (res.ok && json?.success) {
-          setNotifications(json.data || []);
+          const flatData = json.data.map((item) => ({
+              ...item.Notification,
+              isRead: item.isRead,
+            }));
+          setNotifications(flatData);
         } else {
           setNotifications([]);
         }

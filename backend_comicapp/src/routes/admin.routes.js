@@ -18,6 +18,8 @@ const comicFollowRepo = require("../repositories/comic-follow.repo");
 const reportRepo = require("../repositories/report.repo");
 const commentLikeRepo = require("../repositories/comment-like.repo");
 const notificationRepo = require("../repositories/notification.repo");
+const deliveryRepo = require("../repositories/notification-delivery.repo");
+
 
 const genreServiceFactory = require("../services/genre.service");
 const genreControllerFactory = require("../controllers/genre.controller");
@@ -31,7 +33,8 @@ const chapterControllerFactory = require("../controllers/chapter.controller");
 
 const reportServiceFactory = require("../services/report.service");
 const reportControllerFactory = require("../controllers/report.controller");
-
+const notificationServiceFactory = require("../services/notification.service");
+const notificationControllerFactory = require("../controllers/notification.controller");
 const comicServiceFactory = require("../services/comic.service");
 const comicControllerFactory = require("../controllers/comic.controller");
 const { protect, isAdmin } = require("../middlewares/auth");
@@ -42,6 +45,7 @@ const {
   createComicValidator, updateComicValidator,
   updateChapterValidator, addChapterValidator,
   createGenreValidator, updateGenreValidator,
+  createAdminNotificationValidator,
 } = require("../validators/admin.validators");
 
 const chapterService = chapterServiceFactory({
@@ -73,11 +77,13 @@ const reportController = reportControllerFactory(reportService);
 const commentService = commentServiceFactory({
   sequelize,
   model: models,
-  repos: { commentRepo, commentLikeRepo, notificationRepo, reportRepo },
+  repos: { commentRepo, commentLikeRepo, notificationRepo, deliveryRepo, reportRepo },
 });
 const commentController = commentControllerFactory(commentService);
 const genreService = genreServiceFactory({ model: models, genreRepo });
 const genreController = genreControllerFactory(genreService);
+const notificationService = notificationServiceFactory({ model: models, notificationRepo, deliveryRepo });
+const notificationController = notificationControllerFactory(notificationService);
 /* Comics */
 /**
  * @openapi
@@ -208,7 +214,33 @@ router.put("/comics/:id", protect, isAdmin, idParam, updateComicValidator, valid
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
 router.get("/comics/:id", protect, isAdmin, idParam, validateRequest, comicController.getComicByIdForAdmin);
+/**
+ * @openapi
+ * /admin/comics/{id}:
+ *   delete:
+ *     tags: [Comics-Admin]
+ *     summary: (Admin) Xóa truyện và toàn bộ dữ liệu liên quan
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, example: 123 }
+ *     responses:
+ *       200:
+ *         description: Xóa thành công
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ *             example: { success: true, message: "Xóa comic thành công" }
+ *       404:
+ *         description: Không tìm thấy comic
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+ */
 
+router.delete("/comics/:id", protect,isAdmin, idParam, validateRequest, comicController.deleteComic)
 /* Chapters */
 /**
  * @openapi
@@ -270,7 +302,32 @@ router.put("/chapters/:id", protect, isAdmin, chapterIdParam, updateChapterValid
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
 router.post("/comics/:comicId/chapters", protect, isAdmin, comicIdParam, addChapterValidator, validateRequest, chapterController.addChapter);
-
+/**
+ * @openapi
+ * /admin/chapters/{id}:
+ *   delete:
+ *     tags: [Chapters-Admin]
+ *     summary: (Admin) Xóa chương và dữ liệu liên quan
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, example: 456 }
+ *     responses:
+ *       200:
+ *         description: Xóa chương thành công
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ *             example: { success: true, message: "Xóa chương thành công" }
+ *       404:
+ *         description: Không tìm thấy chương
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+ */
+router.delete("/chapters/:id", protect, isAdmin, chapterIdParam, validateRequest, chapterController.deleteChapter)
 /* Users */
 /**
  * @openapi
@@ -585,7 +642,90 @@ router.post("/genres", protect, isAdmin, createGenreValidator, validateRequest, 
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
 router.put("/genres/:id", protect, isAdmin, updateGenreValidator, validateRequest, genreController.updateGenre);
+/**
+ * @openapi
+ * /admin/notifications:
+ *   get:
+ *     tags: [Notifications-Admin]
+ *     summary: (Admin) Lấy danh sách thông báo (chỉ loại promotion & system)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, example: 20 }
+ *         description: Số bản ghi mỗi trang
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, example: 1 }
+ *         description: Trang hiện tại
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách thành công
+ *         content:
+ *           application/json:
+ *             example:
+ *               rows:
+ *                 - notificationId: 1
+ *                   title: "Khuyến mãi 10.10"
+ *                   message: "Nạp xu nhận thêm 25% trong ngày 10/10."
+ *                   category: "promotion"
+ *                   createdAt: "2025-10-04T09:10:00.000Z"
+ *                 - notificationId: 2
+ *                   title: "Bảo trì hệ thống"
+ *                   message: "Hệ thống bảo trì lúc 00:00 ngày 12/10."
+ *                   category: "system"
+ *                   createdAt: "2025-10-02T23:00:00.000Z"
+ *               meta:
+ *                 page: 1
+ *                 limit: 20
+ *                 total: 52
+ *                 totalPages: 3
+ */
+router.get("/notifications", protect, isAdmin, pagingQuery, validateRequest, notificationController.getAllNotificationsForAdmin);
 
+/**
+ * @openapi
+ * /admin/notifications:
+ *   post:
+ *     tags: [Notifications-Admin]
+ *     summary: (Admin) Tạo thông báo broadcast (promotion/system)
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [category, title]
+ *             properties:
+ *               category:
+ *                 type: string
+ *                 enum: [promotion, system]
+ *                 example: promotion
+ *               title:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 255
+ *                 example: "Khuyến mãi 10.10"
+ *               message:
+ *                 type: string
+ *                 maxLength: 2000
+ *                 example: "Nạp xu hôm nay +25%."
+ *     responses:
+ *       200:
+ *         description: Tạo thông báo thành công
+ *         content:
+ *           application/json:
+ *             example:
+ *               data:
+ *                 notificationId: 123
+ *                 category: "promotion"
+ *                 audienceType: "global"
+ *                 title: "Khuyến mãi 10.10"
+ *                 message: "Nạp xu hôm nay +25%."
+ *                 createdAt: "2025-10-24T06:30:00.000Z"
+ */
 
+router.post("/notifications", protect, isAdmin, createAdminNotificationValidator, notificationController.createAdminNotification);
 
 module.exports = router;

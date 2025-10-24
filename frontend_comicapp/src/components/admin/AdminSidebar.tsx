@@ -72,7 +72,7 @@ export default function AdminSidebar({
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-3 text-sidebar-foreground text-base hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "w-full justify-start gap-3 text-sidebar-foreground text-[15px] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     isActive &&
                       "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90",
                     isCollapsed && "justify-center px-2"

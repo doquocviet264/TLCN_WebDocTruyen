@@ -20,7 +20,7 @@ module.exports = (reportService) => ({
 
   resolveReport: asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const data = await reportService.resolveReport({ id });
+    const data = await reportService.resolveReport({  id });
     return ok(res, { data });
   }),
 

@@ -524,5 +524,77 @@ module.exports = ({ sequelize, model, repos }) => {
         return { message: "Thêm comic thành công", comic: newComic };
       });
     },
+    async deleteComic({ id }) {
+    return sequelize.transaction(async (t) => {
+      const { Op } = model.Sequelize;
+
+      const comic = await model.Comic.findByPk(id, { transaction: t });
+      if (!comic) throw new AppError("Không tìm thấy comic", 404, "COMIC_NOT_FOUND");
+
+      // Xóa ảnh bìa Cloudinary (không chặn flow nếu fail)
+      const coverUrl = comic.coverImage;
+      if (coverUrl && /res\.cloudinary\.com/.test(coverUrl)) {
+        const publicId = getCloudinaryPublicId(coverUrl);
+        if (publicId) {
+          cloudinary.uploader.destroy(publicId).catch(() => {}); // không throw, tránh ảnh hưởng TX
+        }
+      }
+
+      // Gom dữ liệu liên quan
+      const chapters = await model.Chapter.findAll({
+        where: { comicId: id }, attributes: ["chapterId"], transaction: t,
+      });
+      const chapterIds = chapters.map(c => c.chapterId);
+
+      const comments = await model.Comment.findAll({
+        where: { comicId: id }, attributes: ["commentId"], transaction: t,
+      });
+      const commentIds = comments.map(c => c.commentId);
+
+      // Xóa phụ thuộc
+      if (chapterIds.length) {
+        await Promise.all([
+          model.ChapterImage.destroy({ where: { chapterId: { [Op.in]: chapterIds } }, transaction: t }),
+          model.ChapterUnlock.destroy({ where: { chapterId: { [Op.in]: chapterIds } }, transaction: t }),
+          model.Transaction.destroy({ where: { chapterId: { [Op.in]: chapterIds } }, transaction: t }),
+        ]);
+      }
+
+      if (commentIds.length) {
+        await model.CommentLikes.destroy({ where: { commentId: { [Op.in]: commentIds } }, transaction: t });
+      }
+
+      await Promise.all([
+        model.Comment.destroy({ where: { comicId: id }, transaction: t }),
+        model.ReadingHistory.destroy({ where: { comicId: id }, transaction: t }),
+        model.ComicRating.destroy({ where: { comicId: id }, transaction: t }),
+        model.ComicFollow.destroy({ where: { comicId: id }, transaction: t }),
+        model.ComicLike.destroy({ where: { comicId: id }, transaction: t }),
+        model.AlternateName.destroy({ where: { comicId: id }, transaction: t }),
+      ]);
+
+      // Bỏ liên kết thể loại (through)
+      await comic.setGenres([], { transaction: t });
+
+      if (chapterIds.length) {
+        await model.Chapter.destroy({ where: { chapterId: { [Op.in]: chapterIds } }, transaction: t });
+      }
+
+      await comic.destroy({ transaction: t });
+
+      return { message: "Xóa comic thành công" };
+    });
+
+    function getCloudinaryPublicId(url) {
+      try {
+        const path = new URL(url).pathname; // /image/upload/v123/comics/abc.jpg
+        const afterUpload = path.split("/upload/")[1];
+        if (!afterUpload) return null;
+        const noVer = afterUpload.replace(/^v\d+\//, "");
+        return noVer.replace(/\.[a-zA-Z0-9]+$/, ""); // comics/abc
+      } catch { return null; }
+    }
+  },
+
   };
 };

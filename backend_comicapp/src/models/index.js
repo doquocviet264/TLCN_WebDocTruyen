@@ -1,16 +1,10 @@
 const { Sequelize } = require("sequelize");
 
-/**
- * Cấu hình tất cả models + associations.
- * Nhận vào: sequelize, DataTypes
- * Trả ra: db { sequelize, Sequelize, ...models, ...junctionTables }
- */
 module.exports = (sequelize, DataTypes) => {
   const db = {};
   db.Sequelize = Sequelize;
   db.sequelize = sequelize;
 
-  // Load models (mỗi file model export: (sequelize, DataTypes) => Model)
   db.User            = require("./user")(sequelize, DataTypes);
   db.Comic           = require("./comic")(sequelize, DataTypes);
   db.AlternateName   = require("./alternateName")(sequelize, DataTypes);
@@ -26,7 +20,6 @@ module.exports = (sequelize, DataTypes) => {
   db.Notification    = require("./notification")(sequelize, DataTypes);
   db.Report          = require("./report")(sequelize, DataTypes);
 
-  // Junction tables
   db.ComicFollow = sequelize.define(
     "ComicFollows",
     { followId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true } },
@@ -66,6 +59,16 @@ module.exports = (sequelize, DataTypes) => {
       chapterId: { type: DataTypes.INTEGER, allowNull: false },
     },
     { tableName: "chapterUnlocks", timestamps: true, createdAt: "unlockedAt", updatedAt: false }
+  );
+  db.NotificationDelivery = sequelize.define(
+    "NotificationDeliveries",
+    {
+      deliveryId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+      notificationId: { type: DataTypes.INTEGER, allowNull: false },
+      userId: { type: DataTypes.INTEGER, allowNull: false },
+      isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+    },
+    { tableName: "NotificationDeliveries", timestamps: true, createdAt: "deliveredAt", updatedAt: false }
   );
 
   db.UserQuest = sequelize.define(
@@ -141,6 +144,14 @@ module.exports = (sequelize, DataTypes) => {
   db.User.hasMany(db.ChapterUnlock, { foreignKey: "userId" });
   db.Chapter.hasMany(db.ChapterUnlock, { foreignKey: "chapterId" });
 
+  // User <-> Notification qua NotificationDelivery (M:N)
+  db.User.belongsToMany(db.Notification, { through: db.NotificationDelivery, as: "notifications", foreignKey: "userId", otherKey: "notificationId" });
+  db.Notification.belongsToMany(db.User, { through: db.NotificationDelivery, as: "users", foreignKey: "notificationId", otherKey: "userId" });
+  db.User.hasMany(db.NotificationDelivery, { foreignKey: "userId" });
+  db.NotificationDelivery.belongsTo(db.User, { foreignKey: "userId" });
+  db.Notification.hasMany(db.NotificationDelivery, { foreignKey: "notificationId" });
+  db.NotificationDelivery.belongsTo(db.Notification, { foreignKey: "notificationId" });
+
   // Chapter <-> Transaction (1:N)
   db.Chapter.hasMany(db.Transaction, { foreignKey: "chapterId" });
   db.Transaction.belongsTo(db.Chapter, { foreignKey: "chapterId" });
@@ -171,9 +182,7 @@ module.exports = (sequelize, DataTypes) => {
   db.User.hasMany(db.UserQuest, { foreignKey: "userId" });
   db.Quest.hasMany(db.UserQuest, { foreignKey: "questId" });
 
-  // User <-> Notification (1:N) & Report (1:N)
-  db.User.hasMany(db.Notification, { foreignKey: "userId", as: "notifications" });
-  db.Notification.belongsTo(db.User, { foreignKey: "userId", as: "user" });
+  // User <-> Report (1:N)
   db.User.hasMany(db.Report, { foreignKey: "userId", as: "reports" });
   db.Report.belongsTo(db.User, { foreignKey: "userId", as: "user" });
 

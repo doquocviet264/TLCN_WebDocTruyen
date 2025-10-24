@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
     userId: {
-      type: DataTypes.BIGINT,
+      type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
     },

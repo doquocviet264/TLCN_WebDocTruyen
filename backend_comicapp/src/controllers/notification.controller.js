@@ -22,4 +22,22 @@ module.exports = (notificationService) => ({
     const data = await notificationService.markAllAsRead({ userId });
     return ok(res, { data });
   }),
+
+  getAllNotificationsForAdmin: asyncHandler(async (req, res) => {
+    const { limit, page } = req.query;
+    const { rows, meta } = await notificationService.getAllNotificationsForAdmin({ limit, page });
+    return ok(res, { data: rows, meta });
+  }),
+
+  createAdminNotification: asyncHandler(async (req, res) => {
+  const { category, title, message } = req.body;
+
+  const notification = await notificationService.createAdminNotification({
+    category,
+    title,
+    message,
+  });
+
+  return ok(res, { data: notification });
+}),
 });

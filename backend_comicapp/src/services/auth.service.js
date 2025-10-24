@@ -71,7 +71,7 @@ module.exports = ({ sequelize, model, userRepo }) => {
       const user = await userRepo.findOne({ email }, { model });
       if (!user) throw new AppError("Thông tin đăng nhập không hợp lệ", 400, "LOGIN_INVALID");
       if (!user.isVerified) throw new AppError("Tài khoản chưa được xác thực", 400, "NOT_VERIFIED");
-
+      if (user.status==="suspended") throw new AppError("Tài khoản đã bị khoá", 400, "NOT_VERIFIED");
       const ok = await user.validPassword(password);
       if (!ok) throw new AppError("Thông tin đăng nhập không hợp lệ", 400, "LOGIN_INVALID");
 

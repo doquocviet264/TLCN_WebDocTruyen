@@ -48,7 +48,7 @@ export default function HomePage() {
       {/* FeaturedCarousel full width */}
       <div className="mb-6">
         <MangaSlider className="mt-2" />
-        {/* <FeaturedCarousel /> */}
+        <FeaturedCarousel />
       </div>
 
       {/* Grid layout cho NewlyUpdated và các phần khác */}

@@ -5,14 +5,15 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true,
     },
-    userId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
     category: {
       type: DataTypes.ENUM('comic_update', 'system', 'follow', 'comment', 'promotion'),
       allowNull: false
     },
+    audienceType: {
+        type: DataTypes.ENUM("global", "direct"),
+        allowNull: false,
+        defaultValue: "direct",
+      },
     title: {
       type: DataTypes.STRING(255),
       allowNull: false
@@ -20,10 +21,6 @@ module.exports = (sequelize, DataTypes) => {
     message: {
       type: DataTypes.TEXT,
       allowNull: false
-    },
-    isRead: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
     },
   }, {
     tableName: 'notifications',

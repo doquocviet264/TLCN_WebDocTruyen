@@ -50,6 +50,11 @@ const addChapterValidator = [
   body("isLocked").optional().isBoolean().withMessage("4"),
   body("images").optional().isArray().withMessage("5"),
 ];
+const createAdminNotificationValidator = [
+  body("category").isIn(["promotion", "system"]).withMessage("category phải là 'promotion' hoặc 'system'"),
+  body("title").isString().trim().notEmpty().withMessage("title bắt buộc"),
+  body("message").isString().trim().notEmpty().withMessage("message bắt buộc"),
+];
 
 /* Genres */
 const createGenreValidator = [
@@ -69,4 +74,6 @@ module.exports = {
   updateChapterValidator, addChapterValidator,
   // genres
   createGenreValidator, updateGenreValidator,
+  // notifications
+  createAdminNotificationValidator,
 };

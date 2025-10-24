@@ -222,5 +222,76 @@ module.exports = ({
         return { message: "Thêm chương thành công", chapter: { ...chapter.toJSON(), images: imgs } };
       });
     },
+    // app/services/chapter.service.js (thêm vào trong return {...})
+    async deleteChapter({ id }) {
+      const { Op } = model.Sequelize;
+
+      // 1) Lấy trước danh sách ảnh để xóa Cloudinary sau khi DB commit
+      const images = await repos.chapterImageRepo.findAll(
+        { chapterId: id },
+        { model, attributes: ["imageId", "imageUrl"] }
+      );
+      const cloudinaryIds = images
+        .map(im => getCloudinaryPublicId(im.imageUrl))
+        .filter(Boolean);
+
+      // 2) Xóa dữ liệu trong transaction
+      await sequelize.transaction(async (t) => {
+        const chapter = await repos.chapterRepo.findById(id, { model, transaction: t });
+        if (!chapter) throw new AppError("Không tìm thấy chương", 404, "CHAPTER_NOT_FOUND");
+
+        // Comments & likes theo chapter
+        const commentRows = await model.Comment.findAll({
+          where: { chapterId: id },
+          attributes: ["commentId"],
+          transaction: t,
+        });
+        const commentIds = commentRows.map(c => c.commentId);
+        if (commentIds.length) {
+          await model.CommentLikes.destroy({ where: { commentId: { [Op.in]: commentIds } }, transaction: t });
+        }
+        await model.Comment.destroy({ where: { chapterId: id }, transaction: t });
+
+        // Reading history
+        await model.ReadingHistory.destroy({ where: { chapterId: id }, transaction: t });
+
+        // Unlocks (mở khóa)
+        await model.ChapterUnlock.destroy({ where: { chapterId: id }, transaction: t });
+
+        // Transactions liên quan chapter
+        await model.Transaction.destroy({ where: { chapterId: id }, transaction: t });
+
+        // Ảnh trang của chapter
+        await model.ChapterImage.destroy({ where: { chapterId: id }, transaction: t });
+
+        // Cuối cùng: xóa chapter
+        await model.Chapter.destroy({ where: { chapterId: id }, transaction: t });
+      });
+
+      // 3) Xóa ảnh Cloudinary sau khi DB đã commit (best-effort, không chặn flow)
+      if (cloudinaryIds.length) {
+        Promise.allSettled(
+          cloudinaryIds.map(pid => cloudinary.uploader.destroy(pid))
+        ).catch(() => {});
+      }
+
+      return { message: "Xóa chương thành công" };
+
+      // Helper: rút public_id từ URL Cloudinary
+      function getCloudinaryPublicId(url) {
+        if (!url || typeof url !== "string") return null;
+        try {
+          // ví dụ: https://res.cloudinary.com/<cloud>/image/upload/v1234567890/chapters/abc_xyz.jpg
+          const u = new URL(url);
+          const afterUpload = u.pathname.split("/upload/")[1]; // v1234567890/chapters/abc_xyz.jpg
+          if (!afterUpload) return null;
+          const noVersion = afterUpload.replace(/^v\d+\//, ""); // chapters/abc_xyz.jpg
+          return noVersion.replace(/\.[a-zA-Z0-9]+$/, "");      // chapters/abc_xyz
+        } catch {
+          return null;
+        }
+      }
+    }
+
   };
 };

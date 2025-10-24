@@ -79,4 +79,8 @@ module.exports = (comicService) => ({
     const data = await comicService.addComic({ body: req.body });
     return ok(res, { data });
   }),
+  deleteComic: asyncHandler(async (req, res) => {
+    const data = await comicService.deleteComic({ id: req.params.id });
+    return ok(res, {data});
+  }),
 });

@@ -108,7 +108,7 @@ export default function ChapterDialog({ mode, comicId, chapter, onSave }: Chapte
 
   // Validate cơ bản
   const validate = () => {
-    if (!Number.isFinite(data.number) || data.number <= 0) return "Số chương phải > 0!";
+    if (!Number.isFinite(data.number) || data.number < 0) return "Số chương phải >= 0!";
     if (data.isLocked && (!Number.isFinite(data.cost) || data.cost < 0)) return "Giá không hợp lệ!";
     if (data.images.length === 0) return "Vui lòng thêm ít nhất 1 ảnh!";
     return null;

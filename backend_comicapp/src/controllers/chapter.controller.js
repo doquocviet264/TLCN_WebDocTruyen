@@ -36,4 +36,9 @@ module.exports = (chapterService) => ({
     const data = await chapterService.addChapter({ comicId, title, chapterNumber, cost, isLocked, images });
     return ok(res, { data });
   }),
+  deleteChapter: asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const data = await chapterService.deleteChapter({ id: +id });
+    return ok(res, {data});
+  }),
 });
