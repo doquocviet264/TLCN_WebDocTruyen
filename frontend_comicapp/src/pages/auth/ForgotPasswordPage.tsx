@@ -6,6 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "react-toastify";
+import axios from "axios";
+
+type ForgotSuccess = {
+  success: true;
+  data: string;
+  meta: any;
+};
+
+type ForgotError = {
+  success: false;
+  error: { message: string; code: string; status: number };
+};
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -17,24 +29,30 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/forgot-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
+      const res = await axios.post<ForgotSuccess | ForgotError>(
+        `${import.meta.env.VITE_API_URL}/auth/forgot-password`,
+        { email },
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-      const data = await response.json();
+      if (res.data.success) {
+        toast.success(`Tự động quay lại trang đăng nhập sau 5 giây...`);
 
-      if (!response.ok) {
-        toast.error(data.msg || "Gửi liên kết thất bại");
+        //Tự động chuyển hướng sau 5 giây
+        setTimeout(() => {
+          navigate("/auth/login", { replace: true });
+        }, 5000);
       } else {
-        toast.success(data.msg || "Liên kết đặt lại mật khẩu đã được gửi");
+        const err = res.data as ForgotError;
+        toast.error(err.error?.message || "Gửi liên kết thất bại");
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Lỗi máy chủ");
+    } catch (error: any) {
+      const serverMsg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "Lỗi máy chủ";
+      toast.error(serverMsg);
     } finally {
       setIsLoading(false);
     }
@@ -64,6 +82,7 @@ export default function ForgotPasswordPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
                     required
+                    autoComplete="email"
                   />
                 </div>
               </div>

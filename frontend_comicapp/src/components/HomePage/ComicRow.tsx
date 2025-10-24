@@ -3,14 +3,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight } from "lucide-react"; 
 import { useRef } from "react";
 
-// --- Interfaces ---
 interface Comic {
-  id?: string;
-  comicId?: string;
+  id: string;
   slug: string;
   title: string;
   image: string;
-  lastChapter?: number | null; 
+  lastChapter: number | null; 
 }
 
 interface ComicRowProps {
@@ -23,7 +21,7 @@ const formatNumber = (num: unknown) => {
     if (isNaN(parsed)||parsed === 0) return "mới";
     return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
 };
-// --- Component Card cho mỗi truyện trong hàng ---
+//Component Card cho mỗi truyện trong hàng
 const ComicRowCard = ({ comic }: { comic: Comic }) => (
   <Link to={`/truyen-tranh/${comic.slug}`} className="block w-40 flex-shrink-0 group">
     <div className="relative overflow-hidden rounded-lg shadow-md aspect-[3/4]">
@@ -48,7 +46,7 @@ const ComicRowCard = ({ comic }: { comic: Comic }) => (
   </Link>
 );
 
-// --- Component Skeleton ---
+//Component Skeleton
 const ComicRowSkeleton = () => (
   <div>
     <Skeleton className="h-8 w-48 mb-4" />
@@ -60,7 +58,7 @@ const ComicRowSkeleton = () => (
   </div>
 );
 
-// --- Component Chính ---
+//Component Chính
 export default function ComicRow({ title, comics, isLoading }: ComicRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -111,7 +109,7 @@ export default function ComicRow({ title, comics, isLoading }: ComicRowProps) {
         className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 -mb-4"
       >
         {comics.map((comic) => (
-          <ComicRowCard key={comic.comicId || comic.id} comic={comic} />
+          <ComicRowCard key={comic.id} comic={comic} />
         ))}
       </div>
     </section>

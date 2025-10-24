@@ -18,6 +18,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 
+
 interface Comment {
   commentId: number;
   content: string;
@@ -33,12 +34,6 @@ interface CommentSectionProps {
   comicSlug: string;
 }
 
-interface FetchCommentsResponse {
-  totalItems: number;
-  comments: Comment[];
-  totalPages: number;
-  currentPage: number;
-}
 
 interface PostCommentResponse {
   commentId: number;
@@ -49,6 +44,15 @@ interface PostCommentResponse {
   User: { username: string; avatar?: string; initials?: string };
   replies?: Comment[];
 }
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
 
 const reportTypeLabels: Record<string, string> = {
   spam: "Spam / Quảng cáo",
@@ -73,27 +77,41 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
   const [reportCommentId, setReportCommentId] = useState<number | null>(null);
   const [reportType, setReportType] = useState("");
   const [reportDescription, setReportDescription] = useState("");
+
+  // --- 1. SỬA HÀM FETCH COMMENTS ---
   useEffect(() => {
     const fetchComments = async () => {
       setLoading(true);
       try {
         const token = getAuthToken();
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const response = await axios.get<FetchCommentsResponse>(
+        
+        // Kiểu dữ liệu đúng: 'data' là một mảng Comment (Comment[])
+        const response = await axios.get<ApiOk<Comment[]>>(
           `${import.meta.env.VITE_API_URL}/comments/comic/${comicSlug}?page=${page}`,
           { headers }
         );
-        setComments(response.data.comments); // Chỉ set comments cho trang hiện tại
-        setTotalPages(response.data.totalPages);
-        setTotalItems(response.data.totalItems);
+
+        // Lấy meta và ép kiểu
+        const meta = response.data.meta as PaginationMeta;
+
+        // 'response.data.data' CHÍNH LÀ mảng comments
+        setComments(response.data.data || []); 
+        
+        // Lấy phân trang từ 'meta'
+        setTotalPages(meta?.totalPages || 1);
+        setTotalItems(meta?.total || 0); // API của bạn dùng 'total'
+
       } catch (error) {
         console.error("Failed to fetch comments:", error);
+        setComments([]); // An toàn: Gán mảng rỗng nếu lỗi
       } finally {
         setLoading(false);
       }
     };
     if (comicSlug) fetchComments();
   }, [comicSlug, page]);
+
   const openReportDialog = (commentId: number) => {
     setReportCommentId(commentId);
     setShowReportDialog(true);
@@ -115,15 +133,20 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
     }
 
     try {
-      const response = await axios.post<PostCommentResponse>(
+      const response = await axios.post<ApiOk<PostCommentResponse>>(
         `${import.meta.env.VITE_API_URL}/comments`,
         { content: newComment, comicId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      if (response.data) {
-        const createdComment: Comment = { ...response.data, likes: 0, isLiked: false };
+      if (response.data.data) {
+        const createdComment: Comment = {
+          ...response.data.data,
+          likes: 0,
+          isLiked: false,
+        };
+
         setComments([createdComment, ...comments]);
-        setTotalItems((prev) => prev + 1); // Cập nhật tổng số khi thêm comment mới
+        setTotalItems((prev) => prev + 1);
       }
       setNewComment("");
       toast.success("Bình luận đã được gửi.");
@@ -140,6 +163,7 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
       return;
     }
 
+    // Logic lạc quan (Optimistic UI)
     setComments((comments) =>
       comments.map((c) => {
         if (c.commentId === commentId) {
@@ -162,6 +186,7 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
         { headers: { Authorization: `Bearer ${token}` } }
       );
     } catch (error) {
+      // Hoàn tác nếu API lỗi
       setComments((comments) =>
         comments.map((c) => {
           if (c.commentId === commentId) {
@@ -180,6 +205,7 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
       toast.error("Thích bình luận thất bại.");
     }
   };
+  
   const handleSubmitReport = async () => {
     if (!reportType || !reportDescription.trim()) {
       toast.warning("Vui lòng chọn loại lỗi và nhập mô tả!");
@@ -200,9 +226,7 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
           title: reportTitle,
           description: reportDescription,
           type: "comment",
-          userId: 0,
-          reportId: reportCommentId,
-          category: reportType,
+          targetId: reportCommentId,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -224,25 +248,33 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
     }
 
     try {
-      const response = await axios.post<PostCommentResponse>(
+      const response = await axios.post<ApiOk<PostCommentResponse>>(
         `${import.meta.env.VITE_API_URL}/comments`,
         { content: replyContent, comicId, parentId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setComments((comments) =>
-        comments.map((c) =>
-          c.commentId === parentId
-            ? {
-                ...c,
-                replies: [
-                  ...(c.replies || []),
-                  { ...response.data, likes: 0, isLiked: false },
-                ],
-              }
-            : c
-        )
-      );
+      if (response.data.data) {
+        const newReply: Comment = {
+          ...response.data.data,
+          likes: 0,
+          isLiked: false,
+        };
+
+        setComments((comments) =>
+          comments.map((c) =>
+            c.commentId === parentId
+              ? {
+                  ...c,
+                  replies: [
+                    ...(c.replies || []),
+                    newReply, 
+                  ],
+                }
+              : c
+          )
+        );
+      }
 
       setReplyingTo(null);
       setReplyContent("");
@@ -290,7 +322,8 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
 
       {/* Comments List */}
       <div className="space-y-6">
-        {comments.map((comment) => (
+        {/* Dùng optional chaining '?.map' để an toàn hơn */}
+        {comments?.map((comment) => (
           <div key={comment.commentId} className="space-y-4">
             {/* Main Comment */}
             <div className="flex space-x-3">
@@ -312,13 +345,13 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => openReportDialog(comment.commentId)}
-                        >
-                          Báo cáo bình luận
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => openReportDialog(comment.commentId)}
+                          >
+                            Báo cáo bình luận
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
                   </div>
@@ -387,7 +420,7 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
                       {showReplies[comment.commentId] ? <Reply className="h-3 w-3 rotate-180" /> : <Reply className="h-3 w-3" />}
                     </Button>
                     {showReplies[comment.commentId] && (
-                      comment.replies.map((reply) => (
+                      comment.replies?.map((reply) => (
                         <div key={reply.commentId} className="flex space-x-3">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={reply.User.avatar || "/placeholder.svg"} alt={reply.User.username} />
@@ -437,51 +470,51 @@ export default function CommentSection({ comicId, comicSlug }: CommentSectionPro
         </div>
       </div>
       <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Báo cáo bình luận</DialogTitle>
-          <DialogDescription>
-            Vui lòng chọn loại lỗi và nhập nội dung mô tả cụ thể.
-          </DialogDescription>
-        </DialogHeader>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Báo cáo bình luận</DialogTitle>
+            <DialogDescription>
+              Vui lòng chọn loại lỗi và nhập nội dung mô tả cụ thể.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 mt-4">
-          <div className="space-y-2">
-            <Label htmlFor="type">Loại lỗi</Label>
-            <Select value={reportType} onValueChange={setReportType}>
-              <SelectTrigger id="type">
-                <SelectValue placeholder="Chọn loại lỗi" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="spam">Spam / Quảng cáo</SelectItem>
-                <SelectItem value="inappropriate">Nội dung phản cảm</SelectItem>
-                <SelectItem value="fake">Thông tin sai lệch</SelectItem>
-                <SelectItem value="harassment">Quấy rối / xúc phạm</SelectItem>
-                <SelectItem value="other">Khác</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="type">Loại lỗi</Label>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger id="type">
+                  <SelectValue placeholder="Chọn loại lỗi" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="spam">Spam / Quảng cáo</SelectItem>
+                  <SelectItem value="inappropriate">Nội dung phản cảm</SelectItem>
+                  <SelectItem value="fake">Thông tin sai lệch</SelectItem>
+                  <SelectItem value="harassment">Quấy rối / xúc phạm</SelectItem>
+                  <SelectItem value="other">Khác</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Mô tả chi tiết</Label>
+              <Textarea
+                id="description"
+                placeholder="Nhập nội dung mô tả chi tiết..."
+                value={reportDescription}
+                onChange={(e) => setReportDescription(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Mô tả chi tiết</Label>
-            <Textarea
-              id="description"
-              placeholder="Nhập nội dung mô tả chi tiết..."
-              value={reportDescription}
-              onChange={(e) => setReportDescription(e.target.value)}
-              className="min-h-[100px]"
-            />
-          </div>
-        </div>
-
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={closeReportDialog}>
-            Hủy
-          </Button>
-          <Button onClick={handleSubmitReport}>Gửi báo cáo</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={closeReportDialog}>
+              Hủy
+            </Button>
+            <Button onClick={handleSubmitReport}>Gửi báo cáo</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </Card>
     

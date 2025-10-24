@@ -40,21 +40,38 @@ interface Report {
     Comic?: { title: string };
   };
 }
+interface Meta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+interface ApiReportsResponse {
+  success: true;
+  data: Report[];            
+  meta: Meta; 
+}
 
 export default function ReportManagement() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalReports, setTotalReports] = useState(0);
 
-  const fetchReports = async () => {
+  const fetchReports = async (page = 1) => {
     try {
       setLoading(true);
-      const res = await axios.get<{ reports: Report[] }>(
-        `${import.meta.env.VITE_API_URL}/admin/reports`,
+      const res = await axios.get<ApiReportsResponse>(
+        `${import.meta.env.VITE_API_URL}/admin/reports?page=${page}`,
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       );
-      setReports(res.data.reports || []);
+      setReports(res.data.data || []);
+      setTotalPages(res.data.meta.totalPages);
+      setCurrentPage(res.data.meta.page);
+      setTotalReports(res.data.meta.total);
     } catch (err) {
       console.error("Lỗi khi lấy báo cáo:", err);
       toast.error("Không thể tải danh sách báo cáo");
@@ -157,7 +174,7 @@ export default function ReportManagement() {
       {/* Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Danh sách Báo cáo ({filteredReports.length})</CardTitle>
+          <CardTitle>Danh sách Báo cáo ({totalReports})</CardTitle>
           <CardDescription>Quản lý và xử lý các báo cáo từ người dùng</CardDescription>
         </CardHeader>
         <CardContent>

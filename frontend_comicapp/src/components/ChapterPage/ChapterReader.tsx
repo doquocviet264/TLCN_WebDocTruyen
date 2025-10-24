@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, createRef, RefObject  } from 'react';
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useDetailedReadingHistory } from "../../hook/useReadingHistory";
-
+import { audioCues } from '../../mocks/mock-audio-script';
 interface ChapterReaderProps {
   loading: boolean;
   images: string[];
@@ -19,6 +19,10 @@ interface ChapterReaderProps {
   autoScrollSpeed: number;
   autoPageInterval: number;
   setIsAutoPlayOn: (value: boolean) => void;
+  scrollToImageIndex: number;
+
+  isAudioModeOn: boolean;
+  audioRef: RefObject<HTMLAudioElement>;
 }
 
 export function ChapterReader({
@@ -35,6 +39,9 @@ export function ChapterReader({
   autoScrollSpeed,
   autoPageInterval,
   setIsAutoPlayOn,
+  scrollToImageIndex,
+  isAudioModeOn,
+  audioRef,
 }: ChapterReaderProps) {
   
   // Hook để lưu lịch sử đọc
@@ -43,6 +50,83 @@ export function ChapterReader({
     chapterId,
     chapterNumber
   });
+
+  // Tạo một ref để giữ một mảng các ref cho mỗi ảnh
+const imageRefs = useRef<RefObject<HTMLImageElement>[]>([]);
+const animationFrameRef = useRef<number | null>(null);
+// Mỗi khi images thay đổi, đảm bảo đã có ref cho từng ảnh
+useEffect(() => {
+  imageRefs.current = images.map((_, i) => imageRefs.current[i] ?? createRef<HTMLImageElement>());
+}, [images]);
+
+//LOGIC CHO AUDIO SCROLLING
+useEffect(() => {
+  const audio = audioRef.current;
+  if (!audio) return;
+  let animationFrameId: number;
+
+  const updateScroll = () => {
+    const currentTime = audio.currentTime;
+
+    // Tìm cue hiện tại và cue tiếp theo
+    const currentCueIndex = audioCues.slice().reverse().findIndex(cue => cue.timestamp <= currentTime);
+    if (currentCueIndex === -1) {
+      animationFrameId = requestAnimationFrame(updateScroll);
+      return;
+    }
+
+    const currentCue = audioCues[audioCues.length - 1 - currentCueIndex];
+    const nextCue = audioCues[audioCues.length - currentCueIndex];
+    if (!nextCue) {
+      animationFrameId = requestAnimationFrame(updateScroll);
+      return;
+    }
+
+    // Lấy phần tử ảnh tương ứng
+    const startEl = imageRefs.current[currentCue.imageIndex]?.current ?? null;
+    const endEl   = imageRefs.current[nextCue.imageIndex]?.current ?? null;
+    if (!startEl || !endEl) {
+      animationFrameId = requestAnimationFrame(updateScroll);
+      return;
+    }
+
+    const startY = startEl.getBoundingClientRect().top + window.scrollY;
+    const endY   = endEl.getBoundingClientRect().top + window.scrollY;
+
+    const segmentDuration = nextCue.timestamp - currentCue.timestamp;
+    const timeIntoSegment = currentTime - currentCue.timestamp;
+    const progress = Math.min(timeIntoSegment / segmentDuration, 1);
+
+    const newScrollY = startY + (endY - startY) * progress;
+
+    window.scrollTo({ top: newScrollY, behavior: 'auto' });
+
+    // Tiếp tục lặp
+    animationFrameId = requestAnimationFrame(updateScroll);
+  };
+
+  const handleWheel = (e: WheelEvent) => {
+    e.preventDefault();
+  };
+
+  if (isAudioModeOn && readingMode === 'long-strip') {
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    // Bắt đầu phát audio và animation
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(err => console.error("Lỗi khi phát audio:", err));
+    }
+
+    animationFrameId = requestAnimationFrame(updateScroll);
+  }
+
+  return () => {
+    cancelAnimationFrame(animationFrameId);
+    window.removeEventListener('wheel', handleWheel);
+    if (!audio.paused) audio.pause();
+  };
+}, [isAudioModeOn, audioRef, readingMode, images]);
 
   // Ref để lưu ID của interval, giúp quản lý và xóa nó một cách an toàn
   const intervalRef = useRef<number | null>(null);
@@ -104,6 +188,7 @@ export function ChapterReader({
             <img
               key={index}
               src={src}
+              ref={imageRefs.current[index]}
               alt={`Trang ${index + 1}`}
               className="w-full h-auto"
               loading="lazy"

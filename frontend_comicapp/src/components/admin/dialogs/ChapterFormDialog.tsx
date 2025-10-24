@@ -39,6 +39,8 @@ interface ChapterDialogProps {
   onSave: (chapter: ChapterDTO) => void;
 }
 
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
+
 export default function ChapterDialog({ mode, comicId, chapter, onSave }: ChapterDialogProps) {
   const isEdit = mode === "edit";
 
@@ -50,12 +52,23 @@ export default function ChapterDialog({ mode, comicId, chapter, onSave }: Chapte
 
   const getToken = () => localStorage.getItem("token");
 
-  // Reset form khi đóng dialog (chỉ khi add, edit thì giữ nguyên)
+  // Reset form khi đóng dialog (Add)
   useEffect(() => {
     if (!open && !isEdit) {
       setData({ number: 1, title: "", cost: 0, isLocked: false, images: [] });
     }
   }, [open, isEdit]);
+
+  // Đồng bộ state khi Edit + mở dialog
+  useEffect(() => {
+    if (open && isEdit && chapter) {
+      setData({
+      ...chapter,
+      number: parseFloat(String(chapter.number)) || 0,
+      cost: Number(chapter.cost) || 0,          
+    });
+    }
+  }, [open, isEdit, chapter]);
 
   // === Upload ảnh ===
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,18 +106,29 @@ export default function ChapterDialog({ mode, comicId, chapter, onSave }: Chapte
     setData({ ...data, images: reindexed });
   };
 
+  // Validate cơ bản
+  const validate = () => {
+    if (!Number.isFinite(data.number) || data.number <= 0) return "Số chương phải > 0!";
+    if (data.isLocked && (!Number.isFinite(data.cost) || data.cost < 0)) return "Giá không hợp lệ!";
+    if (data.images.length === 0) return "Vui lòng thêm ít nhất 1 ảnh!";
+    return null;
+  };
+
   // === Lưu chương ===
   const handleSave = async () => {
+    const err = validate();
+    if (err) return toast.error(err);
+
     try {
       setSaving(true);
 
       const payload = {
         title: data.title,
-        chapterNumber: data.number, // 👈 số thực cũng ok
+        chapterNumber: data.number, 
         cost: data.isLocked ? Number(data.cost) : 0,
         isLocked: !!data.isLocked,
         images: data.images.map((img, idx) => ({
-          imageId: img.id,
+          id: img.id,        
           imageUrl: img.url,
           pageNumber: idx + 1,
         })),
@@ -116,11 +140,12 @@ export default function ChapterDialog({ mode, comicId, chapter, onSave }: Chapte
         : `${API_BASE}/admin/comics/${comicId}/chapters`;
       const method = isEdit ? "PUT" : "POST";
 
+      const token = getToken();
       const res = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: getToken() ? `Bearer ${getToken()}` : "",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -130,11 +155,13 @@ export default function ChapterDialog({ mode, comicId, chapter, onSave }: Chapte
         throw new Error(errJson?.message || `HTTP ${res.status}`);
       }
 
-      const result = await res.json();
-      onSave(result.chapter || { ...data });
+      // API mới: { success, data }
+      const result: ApiOk<ChapterDTO> | any = await res.json();
+      const saved: ChapterDTO = result?.data ?? result?.chapter ?? { ...data };
+      onSave(saved);
 
       toast.success(isEdit ? "Cập nhật chương thành công!" : "Thêm chương thành công!");
-      setOpen(false); // 👈 đóng dialog sau khi thành công
+      setOpen(false); // đóng dialog sau khi thành công
     } catch (e: any) {
       toast.error(e?.message || "Có lỗi xảy ra khi lưu");
     } finally {
@@ -167,12 +194,12 @@ export default function ChapterDialog({ mode, comicId, chapter, onSave }: Chapte
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Số chương (cho phép nhập số thực) */}
+          {/* Số chương */}
           <div>
             <Label>Số chương</Label>
             <Input
               type="number"
-              step="0.1" // 👈 cho phép số thực
+              step="0.1"
               value={data.number}
               onChange={(e) => setData({ ...data, number: parseFloat(e.target.value) || 0 })}
             />

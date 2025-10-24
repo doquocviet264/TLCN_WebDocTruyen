@@ -5,22 +5,26 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 
-// Định nghĩa kiểu dữ liệu cho truyện nhận về từ API
 interface Chapter {
   chapterNumber: number;
   time: string;
 }
 
 interface Comic {
-  comicId: string;
+  id: number;
   slug: string;
   title: string;
   author: string;
   image: string;
-  rating: number | null;
+  rating: number;
   comments: number;
   hearts: number;
-  Chapters: Chapter[]; // Sequelize trả về tên Model với chữ hoa
+  Chapters: Chapter[]
+}
+interface NewlyUpdatedResponse {
+  success: boolean;
+  data: Comic[];
+  meta: any;
 }
 
 // Component Skeleton cho mỗi card truyện
@@ -40,17 +44,15 @@ const ComicCardSkeleton = () => (
 export default function NewlyUpdated() {
   const [comics, setComics] = useState<Comic[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchNewlyUpdatedComics = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<Comic[]>(`${import.meta.env.VITE_API_URL}/comics/newly-updated`);
-        setComics(response.data);
+        const response = await axios.get<NewlyUpdatedResponse>(`${import.meta.env.VITE_API_URL}/comics/newly-updated`);
+        setComics(response.data.data || []);
       } catch (err) {
-        setError("Không thể tải danh sách truyện. Vui lòng thử lại sau.");
-        console.error(err);
+        console.error("Không thể tải danh sách truyện. Vui lòng thử lại sau.", err);
       } finally {
         setLoading(false);
       }
@@ -77,13 +79,10 @@ export default function NewlyUpdated() {
     if (diff < 31536000) return `${Math.floor(diff / 2592000)} tháng trước`;
     return `${Math.floor(diff / 31536000)} năm trước`;
   };
-
-  if (error) {
-    return (
-      <section className="px-4 sm:px-6 lg:px-8 text-center py-10">
-        <p className="text-red-500">{error}</p>
-      </section>
-    );
+  if (loading){
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 max-w-[1280px] mx-auto">
+      {Array.from({ length: 12 }).map((_, index) => <ComicCardSkeleton key={index} />)}
+    </div>
   }
 
   return (
@@ -93,12 +92,9 @@ export default function NewlyUpdated() {
       </h2>
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 max-w-[1280px] mx-auto">
-        {loading ? (
-          Array.from({ length: 12 }).map((_, index) => <ComicCardSkeleton key={index} />)
-        ) : (
-          comics.map((comic) => (
+          {comics.map((comic) => (
             <Link
-              key={comic.comicId}
+              key={comic.id}
               to={`/truyen-tranh/${comic.slug}`}
               className="no-underline group"
             >
@@ -126,7 +122,7 @@ export default function NewlyUpdated() {
                     <div className="flex items-center space-x-2">
                       <div className="flex items-center space-x-1 text-yellow-500">
                         <Star className="h-4 w-4 fill-current" />
-                        <span>{(comic.rating || 0).toFixed(1)}</span>
+                        <span>{Number(comic.rating || 0).toFixed(1)}</span>
                       </div>
                       <div className="flex items-center space-x-1 text-blue-500">
                         <MessageCircle className="h-4 w-4" />
@@ -160,8 +156,7 @@ export default function NewlyUpdated() {
                 </CardContent>
               </Card>
             </Link>
-          ))
-        )}
+          ))}
       </div>
     </section>
   );

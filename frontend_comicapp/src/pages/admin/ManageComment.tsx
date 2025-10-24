@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
-interface CommentItem {
+interface Comment {
   id: number
   content: string
   createdAt: string
@@ -35,15 +35,20 @@ interface CommentItem {
   }
 }
 
-interface CommentResponse {
-  comments: CommentItem[]
-  totalItems: number
-  totalPages: number
-  currentPage: number
+interface ApiCommentResponse {
+  success: true;
+  data: Comment[];            
+  meta: Meta; 
+}
+interface Meta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 export default function CommentModeration() {
-  const [comments, setComments] = useState<CommentItem[]>([])
+  const [comments, setComments] = useState<Comment[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [sortOption, setSortOption] = useState("latest")
   const [reportFilter, setReportFilter] = useState("all")
@@ -55,7 +60,7 @@ export default function CommentModeration() {
   const fetchComments = async (page = 1) => {
     try {
       setLoading(true)
-      const res = await axios.get<CommentResponse>(
+      const res = await axios.get<ApiCommentResponse>(
         `${import.meta.env.VITE_API_URL}/admin/comments?page=${page}`,
         {
           headers: {
@@ -63,9 +68,9 @@ export default function CommentModeration() {
           },
         }
       )
-      setComments(res.data.comments)
-      setTotalPages(res.data.totalPages)
-      setCurrentPage(res.data.currentPage)
+      setComments(res.data.data)
+      setTotalPages(res.data.meta.totalPages)
+      setCurrentPage(res.data.meta.page)
     } catch (err) {
       console.error("Lỗi khi tải bình luận:", err)
       toast.error("Không thể tải bình luận.")
@@ -239,7 +244,6 @@ export default function CommentModeration() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {/* ✅ AlertDialog confirm đẹp */}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button

@@ -10,8 +10,10 @@ interface ComicCardProps {
   continueReadingUrl?: string;
   lastChapter?: string;
   lastChapterUrl?: string;
+  lastReadAt?: string;
   onDelete?: () => void;
 }
+
 export const ComicCard: FC<ComicCardProps> = ({
   imageUrl,
   title,
@@ -20,11 +22,29 @@ export const ComicCard: FC<ComicCardProps> = ({
   lastChapter,
   continueReadingUrl,
   lastChapterUrl,
+  lastReadAt,
   onDelete,
 }) => {
   const handleDeleteClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     onDelete?.();
+  };
+  const timeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    let interval = seconds / 31536000;
+    if (interval > 1) return `${Math.floor(interval)} năm trước`;
+    interval = seconds / 2592000;
+    if (interval > 1) return `${Math.floor(interval)} tháng trước`;
+    interval = seconds / 86400;
+    if (interval > 1) return `${Math.floor(interval)} ngày trước`;
+    interval = seconds / 3600;
+    if (interval > 1) return `${Math.floor(interval)} giờ trước`;
+    interval = seconds / 60;
+    if (interval > 1) return `${Math.floor(interval)} phút trước`;
+    return `Vừa xong`;
   };
 
   return (
@@ -50,6 +70,16 @@ export const ComicCard: FC<ComicCardProps> = ({
             height={270}
             className="aspect-[2/3] w-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-105"
           />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+
+          {lastReadAt && (
+            <div className="pointer-events-none absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div className="absolute bottom-0 left-0 right-0 p-2 text-white text-xs">
+                <div className="font-semibold text-[13px] leading-snug line-clamp-2">{title}</div>
+                <div className="mt-1 opacity-90">Đọc lần cuối: {timeAgo(lastReadAt)}</div>
+              </div>
+            </div>
+          )}
         </a>
       </div>
 
@@ -71,6 +101,7 @@ export const ComicCard: FC<ComicCardProps> = ({
             : `Chương ${lastChapter}`}
         </a>
       </div>
+      
     </div>
   );
 };

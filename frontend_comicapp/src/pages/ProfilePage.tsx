@@ -10,8 +10,44 @@ import { ProfileInfoTab } from "../components/ProfilePage/InfoTab";
 import { ProfileActivityTab } from "../components/ProfilePage/ActivityTab";
 import { ProfileGoldTab } from "../components/ProfilePage/GoldTab";
 import { ProfileSettingsTab } from "../components/ProfilePage/SettingsTab";
-import { UserProfile, Comic, Transaction, Quest, DailyCheckinItem } from "../components/ProfilePage/types";
+interface UserProfile {
+  name: string
+  email: string
+  gender: string
+  birthday: string
+  avatar: string
+  joinDate: string
+  levelName: string
+  experience: {
+    current: number
+    max: number
+  }
+  totalRead: number
+  favorites: number
+  comments: number
+  goldCoins: number
+}
+interface DailyCheckinItem {
+  day: number;
+  checked: boolean;
+  isToday?: boolean;
+}
+interface Transaction {
+  id: number;
+  description: string;
+  amount: number;
+  date: string;
+}
 
+interface Quest {
+  id: number;
+  title: string;
+  reward: number;
+  progress: number;
+  target: number;
+  claimed?: boolean;
+  category?: string; 
+}
 interface GoldInfoResponse {
   transactionHistory: Transaction[];
   dailyCheckin: DailyCheckinItem[];
@@ -45,7 +81,7 @@ interface ClaimQuestResponse {
     newBalance: number;
   };
 }
-
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<"info" | "activity" | "gold" | "settings">("info");
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -68,12 +104,12 @@ export default function ProfilePage() {
     const fetchData = async () => {
       try {
         // Fetch user data
-        const resUser = await axios.get<ApiUserResponse>(
+        const resUser = await axios.get<ApiOk<ApiUserResponse>>(
           `${import.meta.env.VITE_API_URL}/user/profile`,
           authHeaders
         );
 
-        const apiUser = resUser.data;
+        const apiUser = resUser.data.data;
         const mergedUser: UserProfile = {
           name: apiUser.username ?? "Người dùng",
           email: apiUser.email ?? "unknown@email.com",
@@ -91,13 +127,12 @@ export default function ProfilePage() {
         setUser(mergedUser);
 
         // Fetch gold details
-        const resGold = await axios.get<GoldInfoResponse>(
+        const resGold = await axios.get<ApiOk<GoldInfoResponse>>(
           `${import.meta.env.VITE_API_URL}/user/gold-details`,
           authHeaders
         );
-        setTransactionHistory(resGold.data.transactionHistory);
-        setDailyCheckin(resGold.data.dailyCheckin);
-
+        setTransactionHistory(resGold.data.data.transactionHistory);
+        setDailyCheckin(resGold.data.data.dailyCheckin);
         // FETCH QUESTS từ API mới
         await fetchDailyQuests(token);
 
@@ -165,15 +200,13 @@ export default function ProfilePage() {
       console.error("Lỗi khi nhận thưởng:", error);
     }
   };
-
+  const handleUserUpdated = (updated: UserProfile) => {
+    setUser(prev => (prev ? { ...prev, ...updated } : updated));
+  };
   if (!user) {
     return <div className="flex items-center justify-center h-screen">Đang tải...</div>;
   }
 
-  const readingList: Comic[] = [
-    { id: 1, title: "One Piece", cover: "https://placehold.co/128x160/232323/FFF?text=OP", status: "Đang đọc", progress: "Chương 1095/1095", lastRead: "2 giờ trước" },
-    { id: 2, title: "Naruto", cover: "https://placehold.co/128x160/232323/FFF?text=NT", status: "Hoàn thành", progress: "Chương 700/700", lastRead: "1 tuần trước" },
-  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -240,8 +273,8 @@ export default function ProfilePage() {
 
           {/* Main Content */}
           <div className="lg:w-3/4">
-            {activeTab === "info" && <ProfileInfoTab user={user} />}
-            {activeTab === "activity" && <ProfileActivityTab readingList={readingList} />}
+            {activeTab === "info" && <ProfileInfoTab user={user} onUserChange={handleUserUpdated}/>}
+            {activeTab === "activity" && <ProfileActivityTab  />}
             {activeTab === "gold" && (
               <ProfileGoldTab
                 goldCoins={user.goldCoins}

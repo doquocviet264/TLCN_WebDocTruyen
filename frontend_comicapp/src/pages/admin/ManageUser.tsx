@@ -30,12 +30,16 @@ interface User {
   createdAt: string;
   Wallet?: { balance: number };
 }
-
-interface ApiUsersResponse {
-  users: User[];
-  totalUsers: number;
+interface Meta {
+  page: number;
+  limit: number;
+  total: number;
   totalPages: number;
-  currentPage: number;
+}
+interface ApiUsersResponse {
+  success: true;
+  data: User[];            
+  meta: Meta; 
 }
 
 const statusColors: Record<string, string> = {
@@ -69,10 +73,10 @@ export default function ManageUsers() {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         }
       );
-      setUsers(res.data.users || []);
-      setTotalUsers(res.data.totalUsers);
-      setTotalPages(res.data.totalPages);
-      setCurrentPage(res.data.currentPage);
+      setUsers(res.data.data || []);
+      setTotalUsers(res.data.meta.total);
+      setTotalPages(res.data.meta.totalPages);
+      setCurrentPage(res.data.meta.page);
     } catch (err) {
       console.error("Lỗi khi lấy danh sách người dùng:", err);
       toast.error("Không thể tải danh sách người dùng");

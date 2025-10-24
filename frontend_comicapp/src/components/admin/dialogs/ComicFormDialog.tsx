@@ -37,7 +37,11 @@ interface ComicFormDialogProps {
   comic?: Comic;
   onSave: (comic: Comic) => void;
 }
-
+interface Genre {
+  id: number;
+  name: string;
+}
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
 export default function ComicFormDialog({ mode, comic, onSave }: ComicFormDialogProps) {
   const [form, setForm] = useState<Comic>(
     comic || {
@@ -55,14 +59,28 @@ export default function ComicFormDialog({ mode, comic, onSave }: ComicFormDialog
   useEffect(() => {
     const fetchGenres = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/genre`);
-        if (!res.ok) throw new Error("Lỗi khi lấy genres");
-        const data = await res.json();
-        setGenres(data.map((g: any) => g.name));
-      } catch (err) {
-        console.error(err);
+        const res = await axios.get<ApiOk<Genre[]>>(
+          `${import.meta.env.VITE_API_URL}/genres`
+        );
+
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          // Lấy danh sách tên thể loại
+          const list = res.data.data.map((g) => g.name).filter(Boolean);
+          setGenres(list);
+        } else {
+          setGenres([]);
+        }
+      } catch (error: any) {
+        const msg =
+          error?.response?.data?.error?.message ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Lỗi khi lấy thể loại";
+        toast.error(msg);
+        setGenres([]);
       }
     };
+
     fetchGenres();
   }, []);
 
@@ -131,23 +149,19 @@ export default function ComicFormDialog({ mode, comic, onSave }: ComicFormDialog
         : `${import.meta.env.VITE_API_URL}/admin/comics/${form.id}`;
 
       const method = mode === "add" ? axios.post : axios.put;
-
-      const res = await method<{ comic: Comic }>(
-        url,
-        {
-          title: form.title,
-          author: form.author,
-          status: form.status,
-          description: form.description,
-          image: form.image,
-          genres: form.genres,
-          aliases: form.aliases,
-        },
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
-      );
+      const res = await method<ApiOk<Comic>>(url, {
+        title: form.title,
+        author: form.author,
+        status: form.status,
+        description: form.description,
+        image: form.image,
+        genres: form.genres,   // string[]
+        aliases: form.aliases, // string[]
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
 
       toast.success(mode === "add" ? "Thêm truyện thành công!" : "Cập nhật truyện thành công!");
-      onSave(normalizeComic(res.data.comic));
+      const saved = res.data.data;
+      onSave(saved);
       setForm({
       id: 0,
       title: "",

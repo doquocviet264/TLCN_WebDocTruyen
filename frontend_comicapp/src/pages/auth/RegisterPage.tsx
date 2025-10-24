@@ -6,6 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "react-toastify";
+import axios from "axios";
+
+type RegisterSuccess = {
+  success: true;
+  data: string; // "Đăng ký thành công! Vui lòng xác thực OTP."
+  meta?: unknown;
+};
+
+type RegisterError = {
+  success: false;
+  error: { message: string; code: string; status: number };
+};
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -20,10 +32,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,29 +42,30 @@ export default function RegisterPage() {
       toast.error("Mật khẩu không khớp!");
       return;
     }
-
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const res = await axios.post<RegisterSuccess | RegisterError>(
+        `${import.meta.env.VITE_API_URL}/auth/register`,
+        formData,
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        toast.error(data.msg || "Đăng ký thất bại");
+      if (res.data.success) {
+        const msg = (res.data as RegisterSuccess).data || "Đăng ký thành công! Vui lòng xác thực OTP.";
+        toast.success(msg);
+        navigate("/auth/verify-otp", { state: { email: formData.email }, replace: true });
       } else {
-        toast.success(data.msg || "Đăng ký thành công! Vui lòng xác thực OTP.");
-        navigate("/auth/verify-otp", { state: { email: formData.email } });
+        const err = res.data as RegisterError;
+        toast.error(err.error?.message || "Đăng ký thất bại");
       }
-    } catch (error) {
-      console.error(error);
-      toast.error("Lỗi máy chủ");
+    } catch (error: any) {
+      const serverMsg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "Lỗi máy chủ";
+      toast.error(serverMsg);
     } finally {
       setIsLoading(false);
     }
@@ -71,7 +81,7 @@ export default function RegisterPage() {
 
         <Card className="bg-card/50 backdrop-blur-sm border-border/50">
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4 pt-6">
+            <CardContent className="space-y-5 pt-6">
               {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -86,6 +96,7 @@ export default function RegisterPage() {
                     onChange={handleInputChange}
                     className="pl-10"
                     required
+                    autoComplete="email"
                   />
                 </div>
               </div>
@@ -104,6 +115,7 @@ export default function RegisterPage() {
                     onChange={handleInputChange}
                     className="pl-10"
                     required
+                    autoComplete="username"
                   />
                 </div>
               </div>
@@ -122,15 +134,21 @@ export default function RegisterPage() {
                     onChange={handleInputChange}
                     className="pl-10 pr-10"
                     required
+                    autoComplete="new-password"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -149,21 +167,28 @@ export default function RegisterPage() {
                     onChange={handleInputChange}
                     className="pl-10 pr-10"
                     required
+                    autoComplete="new-password"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    aria-label={showConfirmPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                   >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
                   </Button>
                 </div>
               </div>
             </CardContent>
 
-            <CardFooter className="flex flex-col space-y-4">
+            {/* Tăng khoảng cách với inputs bằng border + padding + margin */}
+            <CardFooter className="flex flex-col space-y-4 mt-4 pt-4 border-t border-border/50">
               <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
                 {isLoading ? "Đang đăng ký..." : "Đăng ký"}
               </Button>

@@ -1,20 +1,32 @@
-import React, { useState, useContext } from "react"
-import { useNavigate, useLocation , Link } from "react-router-dom"
-import { Eye, EyeOff, Mail, Lock } from "lucide-react"
+import React, { useState, useContext } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { toast } from "react-toastify";
 import { AuthContext } from "@/context/AuthContext";
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import axios from "axios"; // hoặc: import api from "@/services/client"
+
+type LoginSuccess = {
+  success: true;
+  data: { token: string; role: "USER" | "ADMIN" | string };
+  meta: any;
+};
+
+type LoginError = {
+  success: false;
+  error: { message: string; code: string; status: number };
+};
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useContext(AuthContext)
-  const [showPassword, setShowPassword] = useState(false)
-  const [formData, setFormData] = useState({ email: "", password: "" })
-  const [isLoading, setIsLoading] = useState(false)
+  const { login } = useContext(AuthContext);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [isLoading, setIsLoading] = useState(false);
 
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get("redirect") || "/";
@@ -24,43 +36,46 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const res = await axios.post<LoginSuccess | LoginError>(
+        `${import.meta.env.VITE_API_URL}/auth/login`,
+        formData,
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-      const data = await response.json();
+      // Với axios, res.data luôn có dữ liệu JSON
+      if (res.data.success) {
+        const { token, role } = res.data.data;
 
-      if (!response.ok) {
-        toast.error(data.msg || "Đăng nhập thất bại");
-      } else {
-        // Backend trả { token, role }
-        login(data.token, data.role); 
+        // Lưu token + role qua AuthContext
+        login(token, role);
         toast.success("Đăng nhập thành công");
 
-        if (data.role === "admin") {
-          navigate("/admin", { replace: true }); // Admin → admin dashboard
+        // Điều hướng theo role (giả sử ADMIN vào /admin)
+        if (String(role).toUpperCase() === "ADMIN") {
+          navigate("/admin", { replace: true });
         } else {
-          navigate(redirectUrl, { replace: true }); // User thường → trang thường
+          navigate(redirectUrl, { replace: true });
         }
+      } else {
+        const err = res.data as LoginError;
+        toast.error(err.error?.message || "Đăng nhập thất bại");
       }
-    } catch (error) {
-      console.error(error);
-      toast.error("Lỗi máy chủ");
+    } catch (error: unknown) {
+      const maybeAxiosError = error as any;
+      const serverMsg =
+        maybeAxiosError?.response?.data?.error?.message ||
+        maybeAxiosError?.response?.data?.message ||
+        maybeAxiosError?.message ||
+        "Lỗi máy chủ";
+      toast.error(serverMsg);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }))
-  }
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
 
   return (
     <main className="flex-1 flex justify-center px-4 pt-16">
@@ -77,7 +92,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     id="email"
                     name="email"
@@ -87,6 +102,7 @@ export default function LoginPage() {
                     onChange={handleInputChange}
                     className="pl-10"
                     required
+                    autoComplete="email"
                   />
                 </div>
               </div>
@@ -95,7 +111,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="password">Mật khẩu</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     id="password"
                     name="password"
@@ -105,13 +121,15 @@ export default function LoginPage() {
                     onChange={handleInputChange}
                     className="pl-10 pr-10"
                     required
+                    autoComplete="current-password"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -146,5 +164,5 @@ export default function LoginPage() {
         </Card>
       </div>
     </main>
-  )
+  );
 }

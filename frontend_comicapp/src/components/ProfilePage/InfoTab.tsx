@@ -1,19 +1,35 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { User, Mail, Calendar, Camera, Lock, Edit3, Gift, BookOpen, Heart, MessageCircle } from "lucide-react"
-import { UserProfile } from "./types"
 import { useState, useEffect } from "react"
 import { EditProfileDialog } from "./EditProfileDialog"
 import { ChangePasswordDialog } from "./ChangePasswordDialog"
 import { ChangeAvatarDialog } from "./ChangeAvatarDialog"
 import { toast } from "react-toastify"
 
+interface UserProfile {
+  name: string
+  email: string
+  gender: string
+  birthday: string
+  avatar: string
+  joinDate: string
+  levelName: string
+  experience: {
+    current: number
+    max: number
+  }
+  totalRead: number
+  favorites: number
+  comments: number
+  goldCoins: number
+}
 interface ProfileInfoTabProps {
   user: UserProfile
+  onUserChange: (u: UserProfile) => void;
 }
 
-export function ProfileInfoTab({ user: initialUser }: ProfileInfoTabProps) {
-  const [user, setUser] = useState(initialUser)
+export function ProfileInfoTab({ user, onUserChange }: ProfileInfoTabProps){
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false)
@@ -24,8 +40,8 @@ export function ProfileInfoTab({ user: initialUser }: ProfileInfoTabProps) {
   }
 
   // Hàm cập nhật thông tin người dùng
-  const handleUpdateUser = (updatedUser: UserProfile) => {
-    setUser(updatedUser)
+  const handleUpdateUser = (updated: UserProfile) => {
+    onUserChange(updated);
     toast.success("Thông tin đã được cập nhật")
   }
 

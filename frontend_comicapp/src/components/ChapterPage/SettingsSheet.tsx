@@ -20,6 +20,8 @@ interface SettingsSheetProps {
   setAutoScrollSpeed: (speed: number) => void;
   autoPageInterval: number;
   setAutoPageInterval: (interval: number) => void;
+  isAudioModeOn: boolean;
+  setIsAudioModeOn: (value: boolean) => void;
 }
 
 export function SettingsSheet({
@@ -37,6 +39,8 @@ export function SettingsSheet({
   setAutoScrollSpeed,
   autoPageInterval,
   setAutoPageInterval,
+  isAudioModeOn,
+  setIsAudioModeOn,
 }: SettingsSheetProps) {
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -84,7 +88,24 @@ export function SettingsSheet({
               </Select>
             </div>
           </div>
-          
+          <Separator />
+          <div className="space-y-4">
+            <h4 className="font-semibold text-muted-foreground">Chế độ Audio</h4>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <Label htmlFor="audio-mode" className="flex flex-col gap-1">
+                <span>Bật đọc audio</span>
+                <span className="font-normal text-sm text-muted-foreground">
+                  Nghe và tự động cuộn theo kịch bản.
+                </span>
+              </Label>
+              <Switch
+                id="audio-mode"
+                checked={isAudioModeOn}
+                onCheckedChange={setIsAudioModeOn}
+                className="data-[state=unchecked]:bg-muted data-[state=checked]:bg-primary [&>span]:bg-primary"
+              />
+            </div>
+          </div>
           {/* --- [MỚI] Phần Tự Động Chạy --- */}
           <Separator />
           <div className="space-y-4">

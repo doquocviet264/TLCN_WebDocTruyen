@@ -30,8 +30,8 @@ interface ChapterListProps {
   comicId?: number;
 }
 
-interface UnlockCheckResponse {
-  chapterId: number;
+interface UnlockCheck {
+  chapterId: string;
   isUnlocked: boolean;
   message: string;
 }
@@ -52,6 +52,7 @@ interface ComicHistory {
   lastReadAt: string;
   chapters: { [chapterId: number]: ChapterHistory };
 }
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
 const DETAILED_HISTORY_KEY = 'detailed_reading_history';
 
 export default function ChapterList({ chapters, comicSlug,comicId}: ChapterListProps) {
@@ -110,45 +111,80 @@ export default function ChapterList({ chapters, comicSlug,comicId}: ChapterListP
 
   // useEffect để kiểm tra các chương bị khóa
   useEffect(() => {
-    const checkLockedChapters = async () => {
-      const lockedChapters = chapters.filter(ch => ch.isLocked);
-      if (lockedChapters.length === 0) {
-        setIsChecking(false);
-        return;
-      }
-      
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setIsChecking(false);
-        return;
-      }
 
-      setIsChecking(true);
-      
-      const checkPromises = lockedChapters.map(chapter => 
-        axios.get<UnlockCheckResponse>(`${import.meta.env.VITE_API_URL}/chapter/${chapter.id}/check-unlock`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      );
+  const token = localStorage.getItem("token");
+  const lockedIds = chapters.filter(c => c.isLocked).map(c => c.id);
 
-      try {
-        const responses = await Promise.all(checkPromises);
-        const newStatus: Record<number, boolean> = {};
-        responses.forEach(response => {
-          if (response.data) {
-            newStatus[response.data.chapterId] = response.data.isUnlocked;
+  // Không có chương khoá hoặc không có token -> thoát sớm
+  if (!lockedIds.length || !token) {
+    setIsChecking(false);
+    return;
+  }
+
+  let aborted = false;
+  const controller = new AbortController();
+
+  (async () => {
+    setIsChecking(true);
+
+    // Bỏ qua id đã có kết quả trong cache
+    const needCheck = lockedIds.filter(id => unlockedStatus[id] === undefined);
+    if (!needCheck.length) {
+      setIsChecking(false);
+      return;
+    }
+
+    // Giới hạn concurrency đơn giản bằng cách chunk
+    const chunkSize = 8;
+    const chunks: number[][] = [];
+    for (let i = 0; i < needCheck.length; i += chunkSize) {
+      chunks.push(needCheck.slice(i, i + chunkSize));
+    }
+
+    const newStatus: Record<number, boolean> = {};
+    try {
+      for (const chunk of chunks) {
+        if (aborted) break;
+
+        // Promise.allSettled để không fail cả lô
+        const results = await Promise.allSettled(
+          chunk.map(id =>
+            axios.get<ApiOk<UnlockCheck>>(
+              `${import.meta.env.VITE_API_URL}/chapters/${id}/check-unlock`,
+              { headers: { Authorization: `Bearer ${token}` }}
+            )
+          )
+        );
+
+        results.forEach((r) => {
+          if (r.status === "fulfilled") {
+            const data = r.value.data?.data;
+            if (data) {
+              const cid = Number(data.chapterId);
+              newStatus[cid] = !!data.isUnlocked;
+            }
+          } else {
           }
         });
-        setUnlockedStatus(prev => ({ ...prev, ...newStatus }));
-      } catch (error) {
-        console.error("Lỗi khi kiểm tra trạng thái mở khóa chương:", error);
-      } finally {
-        setIsChecking(false);
+
+        // Cập nhật dần để UI phản hồi sớm
+        if (!aborted) {
+          setUnlockedStatus(prev => ({ ...prev, ...newStatus }));
+        }
       }
-    };
-    
-    checkLockedChapters();
-  }, [chapters]);
+    } catch (e) {
+      console.error("Lỗi khi kiểm tra mở khóa chương:", e);
+    } finally {
+      if (!aborted) setIsChecking(false);
+    }
+  })();
+
+  return () => {
+    aborted = true;
+    controller.abort();
+  };
+}, [chapters, ]);
+
 
   const formatNumber = (num: unknown) => {
     const parsed = typeof num === "number" ? num : Number(num);

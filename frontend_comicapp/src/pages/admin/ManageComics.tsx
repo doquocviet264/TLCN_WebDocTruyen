@@ -23,12 +23,18 @@ const statusLabels: Record<string, string> = {
   "On Hold": "Tạm ngưng",
 };
 
-interface ApiComicsResponse {
-  comics: Comic[];
-  totalComics: number;
+interface Meta {
+  page: number;
+  limit: number;
+  total: number;
   totalPages: number;
-  currentPage: number;
 }
+
+type ApiComicsResponse = {
+  success: true;
+  data: Comic[];            
+  meta: Meta; 
+};
 
 export default function ManageComics() {
   const [comics, setComics] = useState<Comic[]>([]);
@@ -46,10 +52,11 @@ export default function ManageComics() {
         `${import.meta.env.VITE_API_URL}/admin/comics?page=${page}`,
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       );
-      setComics(res.data.comics || []);
-      setTotalPages(res.data.totalPages);
-      setCurrentPage(res.data.currentPage);
-      setTotalComics(res.data.totalComics);
+      setComics(res.data.data);
+      setTotalPages(res.data.meta.totalPages);
+      setCurrentPage(res.data.meta.page);
+      setTotalComics(res.data.meta.total);
+      console.log("Comics fetched:", res.data.data);
     } catch (err) {
       console.error("Lỗi khi lấy danh sách comic:", err);
     } finally {

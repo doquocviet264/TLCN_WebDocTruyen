@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import axios from "axios";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,8 +14,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ComicCard } from "@/components/ComicCard";
 import { useSearchParams } from "react-router-dom";
-const statuses = ["Đang cập nhật", "Hoàn thành", "Tạm ngưng"];
+import { toast } from "react-toastify";
 
+const statuses = ["Đang cập nhật", "Hoàn thành", "Tạm ngưng"];
 const countries = [
   { value: "all", label: "Tất cả quốc gia" },
   { value: "nhat-ban", label: "Nhật Bản", genre: "Manga" },
@@ -24,12 +26,26 @@ const countries = [
   { value: "viet-nam", label: "Việt Nam", genre: "Việt Nam" },
 ];
 
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
+type ApiErr = { success: false; error: { message: string; code: string; status: number } };
+
 interface Comic {
   id: number;
   slug: string;
   title: string;
   image: string;
-  lastChapter: number;
+  lastChapter: number | string;
+}
+
+interface SearchData {
+  comics: Comic[];
+  totalComics: number;
+  totalPages: number;
+  currentPage: number;
+}
+interface Genre {
+  id: number;
+  name: string;
 }
 
 const formatNumber = (num: unknown) => {
@@ -41,8 +57,9 @@ const formatNumber = (num: unknown) => {
 };
 
 export default function SearchPage() {
-
   const [searchParams] = useSearchParams();
+  const queryFromURL = searchParams.get("q") || "";
+
   const [filters, setFilters] = useState({
     searchQuery: "",
     selectedGenres: [] as string[],
@@ -50,78 +67,102 @@ export default function SearchPage() {
     selectedCountry: "all",
     sortBy: "newest",
   });
-
   const [appliedFilters, setAppliedFilters] = useState(filters);
+
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [comics, setComics] = useState<Comic[]>([]);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalComics, setTotalComics] = useState<number>(0);
   const itemsPerPage = 40;
+
   const [genres, setGenres] = useState<string[]>([]);
 
-  // Lấy query từ URL
-  const query = searchParams.get("q") || "";
-
+  // Lấy genres
   useEffect(() => {
     const fetchGenres = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/genre`);
-        if (!res.ok) throw new Error("Lỗi khi lấy genres");
-        const data = await res.json();
-        setGenres(data.map((g: any) => g.name));
-      } catch (err) {
-        console.error(err);
+        const res = await axios.get<ApiOk<Genre[]>>(
+          `${import.meta.env.VITE_API_URL}/genres`
+        );
+
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          // Lấy danh sách tên thể loại
+          const list = res.data.data.map((g) => g.name).filter(Boolean);
+          setGenres(list);
+        } else {
+          setGenres([]);
+        }
+      } catch (error: any) {
+        const msg =
+          error?.response?.data?.error?.message ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Lỗi khi lấy thể loại";
+        toast.error(msg);
+        setGenres([]);
       }
     };
+
     fetchGenres();
   }, []);
 
-  // Effect chính để fetch dữ liệu
+  // Đồng bộ ô input với query URL (nếu có)
+  useEffect(() => {
+    if (queryFromURL) {
+      setFilters((prev) => ({ ...prev, searchQuery: queryFromURL }));
+      setAppliedFilters((prev) => ({ ...prev, searchQuery: queryFromURL }));
+      setCurrentPage(1);
+    }
+  }, [queryFromURL]);
+
+  // Fetch comics theo filters đã áp dụng
   useEffect(() => {
     const fetchComics = async () => {
       try {
-        // Ưu tiên query từ URL, nếu không có thì dùng từ appliedFilters
-        const searchQuery = query || appliedFilters.searchQuery;
-        
-        const queryParams = new URLSearchParams({
-          q: searchQuery,
+        const q = queryFromURL || appliedFilters.searchQuery;
+
+        const params = new URLSearchParams({
+          q,
           genres: appliedFilters.selectedGenres.join(","),
           status: appliedFilters.selectedStatus,
           country: appliedFilters.selectedCountry,
           sortBy: appliedFilters.sortBy,
-          page: currentPage.toString(),
-          limit: itemsPerPage.toString(),
+          page: String(currentPage),
+          limit: String(itemsPerPage),
         });
-        
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/comics/search?${queryParams}`
+
+        const res = await axios.get<ApiOk<SearchData> | ApiErr>(
+          `${import.meta.env.VITE_API_URL}/comics/search?${params.toString()}`
         );
-        
-        if (!response.ok) throw new Error("Lỗi khi lấy dữ liệu");
-        const data = await response.json();
-        
-        setComics(data.comics || []);
-        setTotalPages(data.totalPages || 1);
-        setTotalComics(data.totalComics || 0);
-      } catch (error) {
-        console.error("Lỗi khi lấy dữ liệu truyện:", error);
+
+        if (res.data.success) {
+          const data = (res.data as ApiOk<SearchData>).data;
+          setComics(data.comics || []);
+          setTotalPages(data.totalPages || 1);
+          setTotalComics(data.totalComics || 0);
+        } else {
+          const err = res.data as ApiErr;
+          toast.error(err.error?.message || "Lỗi khi lấy dữ liệu");
+          setComics([]);
+          setTotalPages(1);
+          setTotalComics(0);
+        }
+      } catch (error: any) {
+        const msg =
+          error?.response?.data?.error?.message ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Lỗi khi lấy dữ liệu truyện";
+        toast.error(msg);
         setComics([]);
         setTotalPages(1);
         setTotalComics(0);
       }
     };
-    
+
     fetchComics();
-  }, [query, appliedFilters, currentPage]); // Thêm query vào dependencies
+  }, [queryFromURL, appliedFilters, currentPage]);
 
-  // Cập nhật filters khi query thay đổi (cho UI)
-  useEffect(() => {
-    if (query) {
-      setFilters(prev => ({ ...prev, searchQuery: query }));
-    }
-  }, [query]);
-
-  // Các hàm xử lý filter giữ nguyên
   const handleGenreChange = (genre: string, checked: boolean) => {
     setFilters((prev) => ({
       ...prev,
@@ -132,7 +173,7 @@ export default function SearchPage() {
   };
 
   const handleFilterChange = (key: keyof typeof filters, value: string | string[]) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({ ...prev, [key]: value as any }));
   };
 
   const applyFilters = () => {
@@ -190,9 +231,7 @@ export default function SearchPage() {
 
           <Select
             value={filters.selectedCountry}
-            onValueChange={(value) =>
-              handleFilterChange("selectedCountry", value)
-            }
+            onValueChange={(value) => handleFilterChange("selectedCountry", value)}
           >
             <SelectTrigger className="w-auto">
               <SelectValue placeholder="Chọn quốc gia" />
@@ -220,15 +259,10 @@ export default function SearchPage() {
               <Checkbox
                 id={genre}
                 checked={filters.selectedGenres.includes(genre)}
-                onCheckedChange={(checked) =>
-                  handleGenreChange(genre, !!checked)
-                }
+                onCheckedChange={(checked) => handleGenreChange(genre, !!checked)}
                 className="border border-muted-foreground data-[state=unchecked]:bg-background"
               />
-              <label
-                htmlFor={genre}
-                className="text-sm cursor-pointer select-none"
-              >
+              <label htmlFor={genre} className="text-sm cursor-pointer select-none">
                 {genre}
               </label>
             </div>
@@ -238,9 +272,7 @@ export default function SearchPage() {
 
       <div className="flex-1 space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">
-            Kết quả tìm kiếm ({totalComics} truyện)
-          </h3>
+          <h3 className="font-semibold">Kết quả tìm kiếm ({totalComics} truyện)</h3>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
@@ -251,18 +283,14 @@ export default function SearchPage() {
               title={comic.title}
               href={`/truyen-tranh/${comic.slug}`}
               lastChapter={formatNumber(comic.lastChapter)}
-              lastChapterUrl={`/truyen-tranh/${comic.slug}/chapter/${formatNumber(
-                comic.lastChapter
-              )}`}
+              lastChapterUrl={`/truyen-tranh/${comic.slug}/chapter/${formatNumber(comic.lastChapter)}`}
             />
           ))}
         </div>
 
         {comics.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">
-              Không tìm thấy truyện phù hợp với bộ lọc.
-            </p>
+            <p className="text-muted-foreground">Không tìm thấy truyện phù hợp với bộ lọc.</p>
           </div>
         )}
 

@@ -9,7 +9,6 @@ import RatingWidget from "../components/Comic/RatingWidget"
 import RelatedComics from "../components/Comic/RelatedComics"
 import { toast } from "react-toastify";
 
-// Định nghĩa kiểu dữ liệu cho toàn bộ comic detail
 interface Chapter {
   id:number;
   number: number;
@@ -44,9 +43,11 @@ interface RelatedComic {
   image: string;
   rating: string;
   views: number;
-  latestChapterNumber: number;
+  lastChapter: number;
   latestChapterTime: string;
 }
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
+
 
 const getAuthToken = () => localStorage.getItem("token");
 export default function ComicDetailPage() {
@@ -63,11 +64,11 @@ export default function ComicDetailPage() {
         setLoading(true);
         const token = getAuthToken();
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const response = await axios.get<Comic>(`${import.meta.env.VITE_API_URL}/comics/${slug}`, { headers });
-        setComic(response.data);
+        const response = await axios.get<ApiOk<Comic>>(`${import.meta.env.VITE_API_URL}/comics/${slug}`, { headers });
+        setComic(response.data.data);
         // Gọi API truyện liên quan
-        const relatedRes = await axios.get<RelatedComic[]>(`${import.meta.env.VITE_API_URL}/comics/${slug}/related`, { headers });
-        setRelatedComics(relatedRes.data);
+        const relatedRes = await axios.get<ApiOk<RelatedComic[]>>(`${import.meta.env.VITE_API_URL}/comics/${slug}/related`, { headers });
+        setRelatedComics(relatedRes.data.data);
       } catch (err: unknown) {
         setError("Không thể tải dữ liệu truyện.");
         console.error(err);
@@ -101,7 +102,6 @@ export default function ComicDetailPage() {
             headers: { Authorization: `Bearer ${token}` },
         });
     } catch (err) {
-        // Hoàn tác nếu API lỗi
         setComic(originalComicState);
         toast.error("Đã có lỗi xảy ra, vui lòng thử lại.");
     }
@@ -127,7 +127,6 @@ export default function ComicDetailPage() {
             headers: { Authorization: `Bearer ${token}` },
         });
     } catch (err) {
-        // Hoàn tác nếu API lỗi
         setComic(originalComicState);
         toast.error("Đã có lỗi xảy ra, vui lòng thử lại.");
     }
@@ -136,13 +135,17 @@ export default function ComicDetailPage() {
   if (loading) return <div className="container py-6 text-center">Đang tải trang truyện...</div>;
   if (error) return <div className="container py-6 text-center text-red-500">{error}</div>;
   if (!comic) return <div className="container py-6 text-center">Không tìm thấy truyện.</div>;
-
+  const formatNumber = (num: unknown) => {
+    const parsed = typeof num === "number" ? num : Number(num);
+    if (isNaN(parsed)) return "N/A";
+    return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, '');
+  };
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-1 container px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-11 gap-8">
           <div className="lg:col-span-7 space-y-8">
-            <ComicHeader comic={comic} firstChapter={comic.chapters[0].number} lastChapter={comic.chapters[comic.chapters.length - 1].number} onFollowToggle={handleFollowToggle} onFavoriteToggle={handleFavoriteToggle}/>
+            <ComicHeader comic={comic} firstChapter={comic.chapters[comic.chapters.length - 1].number} lastChapter={comic.chapters[0].number} onFollowToggle={handleFollowToggle} onFavoriteToggle={handleFavoriteToggle}/>
             <ComicDescription description={comic.description} />
             <ChapterList chapters={comic.chapters} comicSlug={comic.slug} comicId={comic.id}/>
             <CommentSection comicId={comic.id.toString()} comicSlug={comic.slug}/>

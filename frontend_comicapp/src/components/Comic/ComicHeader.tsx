@@ -28,15 +28,17 @@ interface ComicHeaderProps {
   onFavoriteToggle: () => void;
 }
 
-interface AccountHistoryItem {
-  id: number;          // comicId
+interface ComicHistoryItem {
+  id: number;
   title: string;
   slug: string;
   image: string;
-  lastChapter: string; // số chương dưới dạng string từ API account
+  lastChapter: string; 
   chapterTitle: string;
   lastReadAt: string;
 }
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
+
 
 interface ComicHistoryLS {
   lastReadChapterId: number;
@@ -57,7 +59,11 @@ export default function ComicHeader({
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [continueChapter, setContinueChapter] = useState<number | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
-
+  const formatNumber = (num: unknown) => {
+    const parsed = typeof num === "number" ? num : Number(num);
+    if (isNaN(parsed)) return "N/A";
+    return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, '');
+  };
   useEffect(() => {
     const token = localStorage.getItem("token");
     setIsLoggedIn(!!token);
@@ -65,23 +71,21 @@ export default function ComicHeader({
     const loadHistory = async () => {
       setLoadingHistory(true);
       try {
-        // 1) Nếu đăng nhập: gọi API /history rồi tìm truyện hiện tại
         if (token) {
           try {
-            const res = await axios.get<AccountHistoryItem[]>(
-              `${import.meta.env.VITE_API_URL}/history`,
+            const res = await axios.get<ApiOk<ComicHistoryItem | null>>(
+              `${import.meta.env.VITE_API_URL}/history/${comic.id}`,
               { headers: { Authorization: `Bearer ${token}` } }
             );
-            const item = res.data.find((h) => h.id === comic.id);
+
+            const item = res.data?.data; // null | ComicHistoryItem
             if (item) {
-              const chNum = Number(item.lastChapter);
-              if (Number.isFinite(chNum)) {
-                setContinueChapter(chNum);
-                return; // đã tìm thấy → kết thúc
-              }
+              const chInt = formatNumber(item.lastChapter);
+              setContinueChapter(Number(chInt));
+              return;
             }
           } catch (e) {
-            console.warn("Không lấy được /history từ tài khoản, fallback localStorage.", e);
+            console.warn("Không lấy được /history/{comicId} từ server, fallback localStorage.", e);
           }
         }
 
@@ -260,7 +264,7 @@ export default function ComicHeader({
                   className="flex-none flex items-center justify-center space-x-2 bg-transparent max-w-[150px] sm:max-w-none"
                   aria-label="Đọc từ đầu"
                 >
-                  <a href={`/truyen-tranh/${comic.slug}/chapter/${firstChapter}`}>
+                  <a href={`/truyen-tranh/${comic.slug}/chapter/${formatNumber(firstChapter)}`}>
                     <Play className="h-4 w-4" />
                     <span className="truncate">Đọc từ đầu</span>
                   </a>
@@ -273,7 +277,7 @@ export default function ComicHeader({
                 className="flex-none flex items-center justify-center space-x-2 bg-secondary text-secondary-foreground hover:bg-secondary/10 max-w-[150px] sm:max-w-none"
                 aria-label="Đọc chương mới nhất"
               >
-                <a href={`/truyen-tranh/${comic.slug}/chapter/${lastChapter}`}>
+                <a href={`/truyen-tranh/${comic.slug}/chapter/${formatNumber(lastChapter)}`}>
                   <BookOpen className="h-4 w-4" />
                   <span className="truncate">Đọc mới nhất</span>
                 </a>

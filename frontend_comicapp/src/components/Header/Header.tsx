@@ -1,4 +1,6 @@
 import { useState, useContext, useRef, useEffect, FormEvent } from "react";
+import { type Socket } from "socket.io-client";
+import { io } from "socket.io-client";
 import { Search, Sun, Moon, User, LogIn, UserPlus, Menu, X, Bell } from "lucide-react";
 import Navbar from './Navbar';
 import { Button } from "@/components/ui/button"; 
@@ -8,6 +10,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "@/context/AuthContext";
 import SearchResults from "./SearchResults";
+import { toast } from "react-toastify";
 
 interface Notification {
   notificationId: number;
@@ -17,66 +20,38 @@ interface Notification {
   isRead: boolean;
 }
 
-
-
+interface SearchData {
+  comics: Array<{ id: number; slug: string; title: string; image: string; lastChapter: number | string }>;
+  totalComics: number;
+  totalPages: number;
+  currentPage: number;
+}
 
 export default function Header() {
   const { isLoggedIn, logout } = useContext(AuthContext);
+
   const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // Lấy thông báo khi component mount
-  useEffect(() => {
-    if (!isLoggedIn) return;
-
-    const fetchNotifications = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // hoặc theo auth của bạn
-          }
-        });
-        const data = await res.json();
-        setNotifications(data.notifications || []);
-      } catch (err) {
-        console.error("Lỗi khi lấy thông báo:", err);
-      }
-    };
-
-    fetchNotifications();
-  }, [isLoggedIn]);
-  
   const searchRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
   const debounceRef = useRef<number | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
+  const navigate = useNavigate();
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
   const toggleTheme = () => {
     setDarkMode(!darkMode);
     document.documentElement.classList.toggle("dark", !darkMode);
   };
 
-  // Đánh dấu thông báo đã đọc
- const markAsRead = async (id: number) => {
-  try {
-    await fetch(`${import.meta.env.VITE_API_URL}/notifications/${id}/read`, {
-      method: "PUT",
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    });
-
-    setNotifications(notifications.map(noti =>
-      noti.notificationId === id ? { ...noti, isRead: true } : noti
-    ));
-  } catch (err) {
-    console.error("Lỗi đánh dấu thông báo đã đọc:", err);
-  }
-};
+  // --------- TIME AGO ---------
   const timeAgo = (dateString: string) => {
     const now = new Date();
     const past = new Date(dateString);
@@ -89,27 +64,122 @@ export default function Header() {
     if (diff < 31536000) return `${Math.floor(diff / 2592000)} tháng trước`;
     return `${Math.floor(diff / 31536000)} năm trước`;
   };
-  // Đánh dấu tất cả là đã đọc
-  const markAllAsRead = async () => {
-  try {
-    await fetch(`${import.meta.env.VITE_API_URL}/notifications/read-all`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+
+  // --------- FETCH NOTIFICATIONS (lần đầu) ---------
+  useEffect(() => {
+    if (!isLoggedIn) {
+      // nếu logout thì clear + ngắt socket
+      setNotifications([]);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
+      return;
+    }
+
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          signal: ctrl.signal,
+        });
+        const json = await res.json();
+        // API envelope: { success: true, data: [...] }
+        if (res.ok && json?.success) {
+          setNotifications(json.data || []);
+        } else {
+          setNotifications([]);
+        }
+      } catch (err) {
+        if ((err as any).name !== 'AbortError') {
+          console.error('Lỗi khi lấy thông báo:', err);
+        }
+      }
+    })();
+
+    return () => ctrl.abort();
+  }, [isLoggedIn]);
+
+  // SOCKET: realtime notification:new 
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    // nếu đã có socket, tránh connect lại
+    if (socketRef.current?.connected) return;
+
+    const token = localStorage.getItem('token');
+    const s = io("http://localhost:3000", {
+      autoConnect: false,
+      transports: ["websocket"],
+      auth: { token }, // server có thể đọc từ socket.handshake.auth.token
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
-    setNotifications(notifications.map(noti => ({ ...noti, isRead: true })));
-  } catch (err) {
-    console.error("Lỗi đánh dấu tất cả thông báo đã đọc:", err);
-  }
-};
+    s.on("connect", () => {
+      // console.log("socket connected", s.id);
+    });
 
-  // Đếm số thông báo chưa đọc
-  const unreadCount = notifications.filter(noti => !noti.isRead).length;
+    s.on("connect_error", (err) => {
+      console.error("socket connect_error:", err?.message || err);
+    });
 
-  // Hàm tìm kiếm thực tế
+    // Lắng nghe sự kiện push từ server khi có thông báo mới
+    s.on("notification:new", (n: Notification) => {
+      setNotifications(prev => [n, ...prev]);
+      // optional toast
+      toast.info(`${n.title}: ${n.message}`, { autoClose: 3000 });
+    });
+
+    s.connect();
+    socketRef.current = s;
+
+    return () => {
+      s.off("notification:new");
+      s.disconnect();
+      socketRef.current = null;
+    };
+  }, [isLoggedIn]);
+
+  // MARK AS READ / READ ALL 
+  const markAsRead = async (id: number) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const json = await res.json();
+      if (res.ok && json?.success) {
+        setNotifications(prev =>
+          prev.map(n => (n.notificationId === id ? { ...n, isRead: true } : n))
+        );
+      }
+    } catch (err) {
+      console.error('Lỗi đánh dấu thông báo đã đọc:', err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications/read-all`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const json = await res.json();
+      if (res.ok && json?.success) {
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      }
+    } catch (err) {
+      console.error('Lỗi đánh dấu tất cả thông báo đã đọc:', err);
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  //SEARCH (fetch + debounce)
   const performSearch = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -119,57 +189,52 @@ export default function Header() {
 
     setIsLoading(true);
     try {
-      const queryParams = new URLSearchParams({
+      const params = new URLSearchParams({
         q: query.trim(),
         page: '1',
-        limit: '10'
+        limit: '10',
       });
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/comics/search?${queryParams}`);
-      const data = await response.json();
-      
-      setSearchResults(data.comics || []);
-      setShowResults(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/comics/search?${params.toString()}`);
+      const json = await res.json();
+      // API envelope: { success: true, data: { comics, ... } }
+      if (res.ok && json?.success) {
+        const payload = json.data as SearchData;
+        setSearchResults(payload?.comics || []);
+        setShowResults(true);
+      } else {
+        setSearchResults([]);
+        setShowResults(false);
+      }
     } catch (error) {
       console.error('Lỗi tìm kiếm:', error);
       setSearchResults([]);
+      setShowResults(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Xử lý tìm kiếm với debounce
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    
-    // Clear timeout cũ nếu có
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-
-    // Set timeout mới - debounce 300ms
     debounceRef.current = window.setTimeout(() => {
       performSearch(value);
     }, 300);
   };
 
-  // Xử lý khi submit form (enter) - chuyển sang trang search
   const handleSearchSubmit = (e: FormEvent) => {
     e.preventDefault();
-    
     if (!searchQuery.trim()) return;
-    
-    // Clear debounce nếu có
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-    
-    // Chuyển hướng sang trang search với query
     navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     setShowResults(false);
   };
 
-  // Xem tất cả kết quả
   const handleViewAllResults = () => {
     navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
     setShowResults(false);
@@ -183,19 +248,14 @@ export default function Header() {
         setShowResults(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Cleanup debounce khi component unmount
+  // Cleanup debounce khi unmount
   useEffect(() => {
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
 
@@ -229,9 +289,7 @@ export default function Header() {
                   setSearchQuery("");
                   setSearchResults([]);
                   setShowResults(false);
-                  if (debounceRef.current) {
-                    clearTimeout(debounceRef.current);
-                  }
+                  if (debounceRef.current) clearTimeout(debounceRef.current);
                 }}
               >
                 <X className="h-4 w-4" />
@@ -317,7 +375,7 @@ export default function Header() {
           </DropdownMenu>
 
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9 relative">
-            {darkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+            {darkMode ? <Moon className="h-4 w-4" />   : <Sun className="h-4 w-4" />}
           </Button>
 
           {isLoggedIn ? (
@@ -396,9 +454,7 @@ export default function Header() {
                     setSearchQuery("");
                     setSearchResults([]);
                     setShowResults(false);
-                    if (debounceRef.current) {
-                      clearTimeout(debounceRef.current);
-                    }
+                    if (debounceRef.current) clearTimeout(debounceRef.current);
                   }}
                 >
                   <X className="h-4 w-4" />

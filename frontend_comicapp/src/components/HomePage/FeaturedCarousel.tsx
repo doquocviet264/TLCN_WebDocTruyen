@@ -11,12 +11,10 @@ interface Comic {
   chapter: number;
   image: string;
 }
-
-interface ComicCardProps {
-  slug: string;
-  title: string;
-  chapter: number;
-  imageUrl: string;
+interface FeaturedResponse {
+  success: boolean;
+  data: Comic[];
+  meta: any;
 }
 
 const formatNumber = (num: unknown) => {
@@ -24,11 +22,11 @@ const formatNumber = (num: unknown) => {
     if (isNaN(parsed)||parsed === 0) return "mới";
     return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
 };
-const ComicCard = ({ slug, title, chapter, imageUrl }: ComicCardProps) => (
+const ComicCard = ({ slug, title, chapter, image }: Comic) => (
   <Link to={`/truyen-tranh/${slug}`} className="block w-[190px] h-[280px] rounded-lg shadow-md overflow-hidden relative group">
     {/* Ảnh nền */}
     <img 
-      src={imageUrl} 
+      src={image || "/placeholder.svg"} 
       alt={title} 
       className="w-full h-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-110" 
     />
@@ -56,7 +54,6 @@ export default function FeaturedCarousel() {
   const [comics, setComics] = useState<Comic[]>([]);
   const [loading, setLoading] = useState(true);
 
-  //Logic Carousel (giữ nguyên, chỉ đổi tên biến)
   const slideCount = comics.length;
   const clonedComics = useMemo(() => {
     if (slideCount === 0) return [];
@@ -80,17 +77,16 @@ export default function FeaturedCarousel() {
     setCurrentIndex((prevIndex) => prevIndex - 1);
   };
 
-  // --- Fetch dữ liệu từ API ---
+  //Fetch dữ liệu từ API
   useEffect(() => {
     const fetchFeaturedComics = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<Comic[]>(`${import.meta.env.VITE_API_URL}/comics/featured`);
-        setComics(response.data);
-        // Reset currentIndex về vị trí bắt đầu khi có dữ liệu mới
-        setCurrentIndex(response.data.length);
+        const response = await axios.get<FeaturedResponse>(`${import.meta.env.VITE_API_URL}/comics/featured`);
+        setComics(response.data.data || []);
+        setCurrentIndex(response.data.data?.length || 0);
       } catch (error) {
-        console.error("Failed to fetch featured comics:", error);
+        console.error("Không thể tải feature", error);
       } finally {
         setLoading(false);
       }
@@ -98,7 +94,7 @@ export default function FeaturedCarousel() {
     fetchFeaturedComics();
   }, []);
 
-  // --- Các hook xử lý logic carousel (giữ nguyên) ---
+  //Các hook xử lý logic carousel 
   useEffect(() => {
     if (!isTransitioning || slideCount === 0) return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -127,7 +123,7 @@ export default function FeaturedCarousel() {
       return () => clearTimeout(timer);
     }
   }, [currentIndex, initialIndex, slideCount, isTransitioning]);
-
+  //Giao diện khi đang tải dữ liệu
   if (loading) {
     return (
       <div className="w-full px-4 sm:px-6 lg:px-8">
@@ -158,10 +154,11 @@ export default function FeaturedCarousel() {
           {clonedComics.map((comic, index) => (
             <div key={`${comic.id}-${index}`} className="mx-2 flex-shrink-0">
               <ComicCard
+                id={comic.id}
                 slug={comic.slug}
                 title={comic.title}
                 chapter={comic.chapter}
-                imageUrl={comic.image}
+                image={comic.image}
               />
             </div>
           ))}

@@ -7,9 +7,9 @@ interface RelatedComic {
   slug: string;
   title: string;
   image: string;
-  rating: string;
+  rating: number | string;
   views: number;
-  latestChapterNumber: number;
+  lastChapter: number;
   latestChapterTime: string; 
 }
 
@@ -43,7 +43,7 @@ export default function RelatedComics({ relatedComics}: RelatedComicsProps) {
     if (interval > 1) return Math.floor(interval) + " phút trước";
     return Math.floor(seconds) + " giây trước";
   };
-
+  console.log("Related Comics:", relatedComics);
 
   return (
     <Card className="p-4 sm:p-6 bg-card/50 backdrop-blur-sm border-border/50">
@@ -53,7 +53,7 @@ export default function RelatedComics({ relatedComics}: RelatedComicsProps) {
           <p className="text-muted-foreground text-center py-4">Không có truyện liên quan nào.</p>
         ) : (
           relatedComics.map((comic) => (
-            <Link key={comic.id} to={`/comic/${comic.slug}`} className="block group">
+            <Link key={comic.id} to={`/truyen-tranh/${comic.slug}`} className="block group">
               <div className="flex items-center gap-4 p-2 rounded-lg hover:bg-muted/50 transition-colors duration-200">
                 <img
                   src={comic.image || "/placeholder.svg"}
@@ -72,7 +72,7 @@ export default function RelatedComics({ relatedComics}: RelatedComicsProps) {
                     <span>{formatViews(comic.views)}</span>
                   </div>
                   <div className="text-sm text-muted-foreground mt-1 truncate">
-                    Chapter #{comic.latestChapterNumber} &bull; {timeAgo(comic.latestChapterTime)}
+                    Chương {comic.lastChapter} &bull; {timeAgo(comic.latestChapterTime)}
                   </div>
                 </div>
               </div>

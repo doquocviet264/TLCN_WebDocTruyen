@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// --- Interfaces ---
 interface User {
   username: string;
   avatar?: string;
@@ -17,14 +16,18 @@ interface Comic {
 }
 
 interface Comment {
-  commentId: number;
+  id: number;
   content: string;
   createdAt: string;
   User: User;
   Comic: Comic;
 }
-
-// --- Component Skeleton ---
+interface RecentCommentsResponse {
+  success: boolean;
+  data: Comment[];
+  meta: any;
+}
+// Component Skeleton cho mỗi bình luận
 const CommentSkeleton = () => (
   <div className="space-y-2">
     <Skeleton className="h-5 w-3/4" />
@@ -36,7 +39,6 @@ const CommentSkeleton = () => (
   </div>
 );
 
-// --- Component Chính ---
 export default function RecentComments() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,8 +47,8 @@ export default function RecentComments() {
     const fetchRecentComments = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<Comment[]>(`${import.meta.env.VITE_API_URL}/comments/recent`);
-        setComments(response.data);
+        const response = await axios.get<RecentCommentsResponse>(`${import.meta.env.VITE_API_URL}/comments/recent`);
+        setComments(response.data.data);
       } catch (error) {
         console.error("Failed to fetch recent comments:", error);
       } finally {
@@ -88,7 +90,7 @@ export default function RecentComments() {
           Array.from({ length: 5 }).map((_, i) => <CommentSkeleton key={i} />)
         ) : (
           comments.map((comment) => (
-            <div key={comment.commentId} className="space-y-2">
+            <div key={comment.id} className="space-y-2">
               {/* Link đến truyện */}
               <Link to={`/truyen-tranh/${comment.Comic.slug}`} className="text-base group">
                 <span className="font-semibold text-foreground group-hover:text-primary transition-colors">

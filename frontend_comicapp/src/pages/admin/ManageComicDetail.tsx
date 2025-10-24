@@ -8,7 +8,7 @@ import ComicChapters from "@/components/admin/comics/ComicChapters";
 import ComicHeader from "@/components/admin/comics/ComicHeader";
 
 interface ChapterImage {
-  id: number;
+  id?: number;               // id ảnh có thể undefined khi mới tạo
   url: string;
   pageNumber: number;
 }
@@ -20,18 +20,18 @@ interface Chapter {
   views: number;
   cost: number;
   isLocked?: boolean;
-  publishDate: string;
-  updatedAt: string;
+  publishDate?: string;
+  updatedAt?: string;
   images: ChapterImage[];
 }
 
-interface ComicDetail {
+interface Comic {
   id: number;
   slug: string;
   title: string;
   author: string;
   image: string;
-  lastUpdate: string;
+  lastUpdate?: string;
   status: string;
   description: string;
   genres: string[];
@@ -43,19 +43,22 @@ interface ComicDetail {
   updatedAt: string;
 }
 
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
+
 export default function ComicDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [comic, setComic] = useState<ComicDetail | null>(null);
+  const [comic, setComic] = useState<Comic | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchComic = async () => {
     try {
-      const res = await axios.get<ComicDetail>(
+      const token = localStorage.getItem("token");
+      const res = await axios.get<ApiOk<Comic>>(
         `${import.meta.env.VITE_API_URL}/admin/comics/${id}`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
-      setComic(res.data);
+      setComic(res.data.data)
     } catch (error) {
       console.error("Lỗi khi lấy comic detail:", error);
     } finally {
@@ -111,7 +114,10 @@ export default function ComicDetail() {
         onDelete={(chapterId) =>
           axios
             .delete(`${import.meta.env.VITE_API_URL}/admin/chapters/${chapterId}`, {
-              headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+              headers: (() => {
+                const token = localStorage.getItem("token");
+                return token ? { Authorization: `Bearer ${token}` } : {};
+              })(),
             })
             .then(() => fetchComic())
             .catch((err) => console.error("Lỗi khi xóa chương:", err))

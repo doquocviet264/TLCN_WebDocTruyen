@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChapterReader } from '../components/ChapterPage/ChapterReader';
 import { ChapterControlFooter } from '../components/ChapterPage/ChapterControlFooter';
@@ -8,7 +8,7 @@ import { CommentsSheet } from '../components/ChapterPage/CommentsSheet';
 import { AuthContext } from "../context/AuthContext"; 
 import axios from 'axios';
 import { toast } from "react-toastify";
-
+import { audioCues } from '../mocks/mock-audio-script';
 // Định nghĩa kiểu cho chapterData
 interface ChapterData {
   id: number;
@@ -37,7 +37,7 @@ interface CheckUnlockResponse {
   chapterId: string;
   message: string;
 }
-
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
 export default function ChapterPage() {
   const { slug, chapterNumber } = useParams<{ slug: string; chapterNumber: string }>();
   const [loading, setLoading] = useState(true);
@@ -54,16 +54,22 @@ export default function ChapterPage() {
   const [isAutoPlayOn, setIsAutoPlayOn] = useState(false); // Bật/tắt tự động chạy
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Tốc độ cuộn (1-10)
   const [autoPageInterval, setAutoPageInterval] = useState(5); // Thời gian chuyển trang (giây)
-  
+  // State mới cho chế độ audio
+  const [isAudioModeOn, setIsAudioModeOn] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);;
   const navigate = useNavigate();
   const { isLoggedIn} = useContext(AuthContext);
-
+  
+  const toggleAudioMode = () => {
+    setIsAudioModeOn(prev => !prev);
+  };
   useEffect(() => {
     const fetchChapterData = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<ChapterData>(`${import.meta.env.VITE_API_URL}/chapter/${slug}/${chapterNumber}`);
-        const chapter = response.data;
+        const response = await axios.get<ApiOk<ChapterData>>(`${import.meta.env.VITE_API_URL}/chapters/${slug}/${chapterNumber}`);
+        const chapter = response.data.data;
         setChapterData(chapter);
         
         // Kiểm tra trạng thái mở khóa nếu chương bị khóa
@@ -85,8 +91,8 @@ export default function ChapterPage() {
   const checkUnlockStatus = async (chapterId: number) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get<CheckUnlockResponse>(
-        `${import.meta.env.VITE_API_URL}/chapter/${chapterId}/check-unlock`,
+      const response = await axios.get<ApiOk<CheckUnlockResponse>>(
+        `${import.meta.env.VITE_API_URL}/chapters/${chapterId}/check-unlock`,
         {
           headers: {
             'Authorization': token ? `Bearer ${token}` : undefined,
@@ -97,7 +103,7 @@ export default function ChapterPage() {
       const responseData = response.data;
       
       // Nếu đã mở khóa, cập nhật state
-      if (responseData.isUnlocked) {
+      if (responseData.data.isUnlocked) {
         setChapterData(prev => prev ? {...prev, isLocked: false} : null);
       }
     } catch (error) {
@@ -137,8 +143,8 @@ export default function ChapterPage() {
     try {
       const token = localStorage.getItem("token");
       setUnlockLoading(true);
-      const response = await axios.post<UnlockResponse>(
-        `${import.meta.env.VITE_API_URL}/chapter/${chapterData.id}/unlock`,
+      const response = await axios.post<ApiOk<UnlockResponse>>(
+        `${import.meta.env.VITE_API_URL}/chapters/${chapterData.id}/unlock`,
         {},
         {
           headers: {
@@ -147,21 +153,19 @@ export default function ChapterPage() {
         }
       );
       
-      // Kiểm tra kiểu dữ liệu an toàn
-      const responseData = response.data as UnlockResponse;
       
-      if (responseData.msg === "Mở khóa chương thành công") {
+      if (response.data.success === true) {
         // Cập nhật trạng thái chapter sau khi mở khóa thành công
         setChapterData(prev => prev ? {...prev, isLocked: false} : null);
         toast.success('Mở khóa chương thành công!');
       } else {
-        toast.error(responseData.msg || 'Có lỗi xảy ra khi mở khóa chương');
+        toast.error('Có lỗi xảy ra khi mở khóa chương');
       }
     } catch (error: any) {
       console.error('Lỗi khi mở khóa chương:', error);
       
       // Xử lý lỗi dựa trên response từ backend
-      if (error.response?.status === 401) {
+      if (error.response.status === 401) {
         toast.error('Bạn cần đăng nhập để mở khóa chương');
         navigate(`/auth/login?redirect=${encodeURIComponent(window.location.pathname)}`);
       } else if (error.response?.status === 400) {
@@ -219,6 +223,7 @@ export default function ChapterPage() {
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
+      <audio ref={audioRef} src="/audio/mock-chapter-audio.mp3" style={{ display: 'none' }} />
       <div className="bg-muted text-foreground min-h-screen flex flex-col">
         <main onClick={toggleFooter} className="flex-1 relative">
           {chapterData.isLocked ? (
@@ -279,7 +284,9 @@ export default function ChapterPage() {
               autoScrollSpeed={autoScrollSpeed}
               autoPageInterval={autoPageInterval}
               setIsAutoPlayOn={setIsAutoPlayOn} 
-              
+              scrollToImageIndex={activeImageIndex}
+              isAudioModeOn={isAudioModeOn}
+              audioRef={audioRef}
             />
           )}
         </main>
@@ -310,9 +317,11 @@ export default function ChapterPage() {
           setAutoScrollSpeed={setAutoScrollSpeed}
           autoPageInterval={autoPageInterval}
           setAutoPageInterval={setAutoPageInterval}
+          isAudioModeOn={isAudioModeOn}
+          setIsAudioModeOn={setIsAudioModeOn}
         />
-        <ReportDialog isOpen={isReportOpen} onOpenChange={setIsReportOpen} />
-        <CommentsSheet isOpen={isCommentsOpen} onOpenChange={setIsCommentsOpen} />
+        <ReportDialog isOpen={isReportOpen} onOpenChange={setIsReportOpen}  comicTitle={chapterData.comicTitle} chapterNumber={chapterData.chapterNumber} chapterId = {chapterData.id}/>
+        <CommentsSheet isOpen={isCommentsOpen} onOpenChange={setIsCommentsOpen} comicId={chapterData.comicId} chapterId={chapterData.id} comicSlug ={chapterData.comicSlug} />
       </div>
     </div>
   );

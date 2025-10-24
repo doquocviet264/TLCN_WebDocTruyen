@@ -18,7 +18,7 @@ import SearchPage from "./pages/SearchPage";
 import ChapterPage from "./pages/ChapterPage";
 import HistoryPage from "./pages/HistoryPage";
 import FollowPage from "./pages/FollowPage";
-
+import CommunityPage from "./pages/CommunityPage";
 // Admin pages
 import AdminLayout from "./layouts/AdminLayout";
 import Comics from "./pages/admin/ManageComics";
@@ -35,7 +35,7 @@ function App() {
       <Router>
         <Routes>
           {/* User layout */}
-          <Route element={<UserLayout />}>
+          <Route path="/" element={<UserLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/auth/register" element={<RegisterPage />} />
             <Route path="/auth/login" element={<LoginPage />} />
@@ -49,6 +49,7 @@ function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/following" element={<FollowPage />} />
+            <Route path="/community" element={<CommunityPage />} />
           </Route>
 
           {/* Admin layout */}

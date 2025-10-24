@@ -15,7 +15,7 @@ const ratings = [
   { value: 5, label: "Tuyệt vời", icon: "🤩" },
 ];
 
-interface UserRatingResponse {
+interface UserRating {
   rating: number | null;
 }
 
@@ -23,6 +23,7 @@ interface RatingWidgetProps {
   comicId: number;
   onRatingUpdate?: (rating: number) => void;
 }
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
 
 export default function RatingWidget({ comicId, onRatingUpdate }: RatingWidgetProps) {
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
@@ -37,12 +38,12 @@ export default function RatingWidget({ comicId, onRatingUpdate }: RatingWidgetPr
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await axios.get<UserRatingResponse>(
+      const response = await axios.get<ApiOk<UserRating>>(
         `${import.meta.env.VITE_API_URL}/ratings/${comicId}/user`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setSelectedRating(response.data.rating);
+      setSelectedRating(response.data.data.rating);
     } catch (error) {
       console.error("Lỗi khi lấy đánh giá:", error);
     }
@@ -89,7 +90,6 @@ export default function RatingWidget({ comicId, onRatingUpdate }: RatingWidgetPr
 
       toast.success("Cảm ơn bạn đã đánh giá");
       onRatingUpdate?.(selectedRating);
-      // Sau khi gửi xong, load lại đánh giá mới từ server
       fetchUserRating();
     } catch (error) {
       toast.error("Không thể gửi đánh giá. Vui lòng thử lại sau!");

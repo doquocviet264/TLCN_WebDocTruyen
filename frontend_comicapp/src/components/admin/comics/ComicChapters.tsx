@@ -20,7 +20,7 @@ export default function ComicChapters({ comicId, chapters, refreshList, onDelete
           <CardTitle>Danh sách chương</CardTitle>
           <CardDescription>Quản lý toàn bộ các chương của truyện</CardDescription>
         </div>
-        <ChapterDialog mode="add" comicId={comicId} onSave={refreshList} />
+        <ChapterDialog mode="add" comicId={comicId} onSave={() => refreshList()} />
       </CardHeader>
 
       <CardContent>
@@ -59,7 +59,7 @@ export default function ComicChapters({ comicId, chapters, refreshList, onDelete
                       <Button variant="outline" size="icon" title="Xem chương">
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <ChapterDialog mode="edit" comicId={comicId} chapter={ch} onSave={refreshList} />
+                      <ChapterDialog mode="edit" comicId={comicId} chapter={ch} onSave={() => refreshList()} />
                       <Button variant="destructive" size="icon" title="Xóa" onClick={() => onDelete?.(ch.id!)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>

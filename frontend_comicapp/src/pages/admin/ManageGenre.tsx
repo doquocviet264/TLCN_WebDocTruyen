@@ -33,12 +33,17 @@ interface Genre {
   genreId: number
   name: string
 }
+interface Meta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
 
-interface GenreResponse {
-  genres: Genre[]
-  totalItems: number
-  totalPages: number
-  currentPage: number
+interface ApiGenreResponse {
+  success: true;
+  data: Genre[];            
+  meta: Meta; 
 }
 
 export default function GenreManagement() {
@@ -56,7 +61,7 @@ export default function GenreManagement() {
   const fetchGenres = async (page = 1, search = "") => {
     try {
       setLoading(true)
-      const res = await axios.get<GenreResponse>(
+      const res = await axios.get<ApiGenreResponse>(
         `${import.meta.env.VITE_API_URL}/admin/genres?page=${page}&search=${search}`,
         {
           headers: {
@@ -64,10 +69,10 @@ export default function GenreManagement() {
           },
         }
       )
-      setGenres(res.data.genres)
-      setCurrentPage(res.data.currentPage)
-      setTotalPages(res.data.totalPages)
-        setTotalItems(res.data.totalItems)
+      setGenres(res.data.data)
+      setCurrentPage(res.data.meta.page)
+      setTotalPages(res.data.meta.totalPages)
+      setTotalItems(res.data.meta.total)
 
     } catch (err) {
       console.error("Lỗi khi tải thể loại:", err)

@@ -4,11 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "react-toastify";
+import axios from "axios";
+
+type ApiOk = { success: true; data: string; meta?: unknown };
+type ApiErr = { success: false; error: { message: string; code: string; status: number } };
 
 export default function VerifyOTPPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const email = location.state?.email || ""; // Lấy email từ state
+  const email = location.state?.email || "";
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -18,14 +22,12 @@ export default function VerifyOTPPage() {
   }, []);
 
   const handleInputChange = (index: number, value: string) => {
-    if (value.length > 1) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
+    // chỉ nhận 1 ký tự số
+    const v = value.replace(/\D/g, "").slice(0, 1);
+    const next = [...otp];
+    next[index] = v;
+    setOtp(next);
+    if (v && index < 5) inputRefs.current[index + 1]?.focus();
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
@@ -37,6 +39,10 @@ export default function VerifyOTPPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const otpCode = otp.join("");
+    if (!email) {
+      toast.error("Thiếu email để xác thực OTP");
+      return;
+    }
     if (otpCode.length !== 6) {
       toast.error("Vui lòng nhập đầy đủ mã OTP");
       return;
@@ -44,21 +50,27 @@ export default function VerifyOTPPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: otpCode }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        toast.error(data.msg || "OTP không hợp lệ");
+      const res = await axios.post<ApiOk | ApiErr>(
+        `${import.meta.env.VITE_API_URL}/auth/verify-otp`,
+        { email, otp: otpCode },
+        { headers: { "Content-Type": "application/json" } }
+      );
+
+      if (res.data.success) {
+        const msg = (res.data as ApiOk).data || "Xác thực tài khoản thành công";
+        toast.success(msg);
+        navigate("/auth/login", { replace: true });
       } else {
-        toast.success(data.msg || "Xác thực tài khoản thành công");
-        navigate("/auth/login");
+        const err = res.data as ApiErr;
+        toast.error(err.error?.message || "OTP không hợp lệ");
       }
-    } catch (error) {
-      console.error(error);
-      toast.error("Lỗi máy chủ");
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "Lỗi máy chủ";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -69,22 +81,26 @@ export default function VerifyOTPPage() {
       toast.error("Không có email để gửi OTP");
       return;
     }
-
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/resend-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        toast.error(data.msg || "Gửi OTP thất bại");
+      const res = await axios.post<ApiOk | ApiErr>(
+        `${import.meta.env.VITE_API_URL}/auth/resend-otp`,
+        { email },
+        { headers: { "Content-Type": "application/json" } }
+      );
+      if (res.data.success) {
+        const msg = (res.data as ApiOk).data || "OTP mới đã được gửi đến email của bạn";
+        toast.success(msg);
       } else {
-        toast.success(data.msg || "OTP mới đã được gửi đến email của bạn");
+        const err = res.data as ApiErr;
+        toast.error(err.error?.message || "Gửi OTP thất bại");
       }
-    } catch (error) {
-      console.error(error);
-      toast.error("Lỗi máy chủ");
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "Lỗi máy chủ";
+      toast.error(msg);
     }
   };
 
@@ -105,10 +121,12 @@ export default function VerifyOTPPage() {
                 {otp.map((digit, index) => (
                   <Input
                     key={index}
-                    ref={(el) => { inputRefs.current[index] = el }}
+                    ref={(el) => {
+                      inputRefs.current[index] = el;
+                    }}
                     type="text"
                     inputMode="numeric"
-                    pattern="[0-9]"
+                    pattern="[0-9]*"
                     maxLength={1}
                     value={digit}
                     onChange={(e) => handleInputChange(index, e.target.value)}
@@ -121,18 +139,13 @@ export default function VerifyOTPPage() {
 
               <div className="text-center">
                 <p className="text-sm text-muted-foreground mb-2">Không nhận được mã?</p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleResendOTP}
-                  className="text-primary hover:underline"
-                >
+                <Button type="button" variant="ghost" onClick={handleResendOTP} className="text-primary hover:underline">
                   Gửi lại mã OTP
                 </Button>
               </div>
             </CardContent>
 
-            <CardFooter>
+            <CardFooter className="mt-4 pt-4 border-t border-border/50">
               <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
                 {isLoading ? "Đang xác nhận..." : "Xác nhận"}
               </Button>

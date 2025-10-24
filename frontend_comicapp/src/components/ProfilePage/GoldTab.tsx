@@ -3,12 +3,32 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CircleDollarSign, CalendarCheck, Target, ListChecks, CheckCircle } from "lucide-react";
-import { Transaction, Quest, DailyCheckinItem } from "./types";
 import { toast } from "react-toastify"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
+interface DailyCheckinItem {
+  day: number;
+  checked: boolean;
+  isToday?: boolean;
+}
+interface Transaction {
+  id: number;
+  description: string;
+  amount: number;
+  date: string;
+}
+
+interface Quest {
+  id: number;
+  title: string;
+  reward: number;
+  progress: number;
+  target: number;
+  claimed?: boolean;
+  category?: string; // Thêm category nếu cần
+}
 interface ProfileGoldTabProps {
   goldCoins: number;
   dailyCheckin?: DailyCheckinItem[];
@@ -35,7 +55,8 @@ interface MoMoResponse {
   payUrl: string;
   shortLink: string;
 }
-
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
+type ApiErr = { success: false; error: { message: string; code: string; status: number } };
 export function ProfileGoldTab({
   goldCoins,
   dailyCheckin,
@@ -89,13 +110,13 @@ export function ProfileGoldTab({
         return;
       }
 
-      const response = await axios.post<CheckinResponse>(
+      const response = await axios.post<ApiOk<CheckinResponse>>(
         `${import.meta.env.VITE_API_URL}/user/checkin`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const data = response.data;
+      const data = response.data.data;
       toast.success(data.message || "Điểm danh thành công!")
 
       setCoins(data.newBalance);
@@ -103,7 +124,7 @@ export function ProfileGoldTab({
 
       if (onCheckin) onCheckin(data.dailyCheckin, data.newBalance);
     } catch (err: any) {
-      const message = err.response?.data?.message || "Điểm danh thất bại! Vui lòng thử lại.";
+      const message = "Điểm danh thất bại! Vui lòng thử lại.";
       toast.error(message)
     }
   };
@@ -140,38 +161,38 @@ export function ProfileGoldTab({
 
       {/* Dialog nạp thêm */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-  <DialogContent className="sm:max-w-[400px] p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg">
-    <DialogHeader className="text-center">
-      <DialogTitle className="text-lg font-bold text-gray-800">
-        Chọn số tiền muốn nạp
-      </DialogTitle>
-    </DialogHeader>
+      <DialogContent className="sm:max-w-[400px] p-6 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg">
+        <DialogHeader className="text-center">
+          <DialogTitle className="text-lg font-bold text-gray-800">
+            Chọn số tiền muốn nạp
+          </DialogTitle>
+        </DialogHeader>
 
-    <div className="grid grid-cols-2 gap-4 mt-6">
-      {topupOptions.map(amount => (
-        <button
-          key={amount}
-          onClick={() => setSelectedAmount(amount)}
-          className={`flex items-center justify-center p-4 rounded-xl font-medium border transition-all
-            ${selectedAmount === amount ? " " : "bg-white text-gray-700 border-gray-200 hover:bg-blue-100"}
-          `}
-        >
-          {amount.toLocaleString()} đ
-        </button>
-      ))}
-    </div>
+        <div className="grid grid-cols-2 gap-4 mt-6">
+          {topupOptions.map(amount => (
+            <button
+              key={amount}
+              onClick={() => setSelectedAmount(amount)}
+              className={`flex items-center justify-center p-4 rounded-xl font-medium border transition-all
+                ${selectedAmount === amount ? " " : "bg-white text-gray-700 border-gray-200 hover:bg-blue-100"}
+              `}
+            >
+              {amount.toLocaleString()} đ
+            </button>
+          ))}
+        </div>
 
-    <DialogFooter className="mt-6">
-      <Button
-        className="w-full "
-        disabled={selectedAmount === 0}
-        onClick={() => handleTopup(selectedAmount)}
-      >
-        Nạp {selectedAmount ? selectedAmount.toLocaleString() : ""} đ
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+        <DialogFooter className="mt-6">
+          <Button
+            className="w-full "
+            disabled={selectedAmount === 0}
+            onClick={() => handleTopup(selectedAmount)}
+          >
+            Nạp {selectedAmount ? selectedAmount.toLocaleString() : ""} đ
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
 
       {/* Điểm danh hàng ngày */}

@@ -1,220 +1,241 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { ComicCard } from '../components/ComicCard';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { ComicCard } from "../components/ComicCard";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {useNavigate } from 'react-router-dom';
-// Interface cho dữ liệu từ API tài khoản
-interface AccountComic {
-  id: number;
-  title: string;
-  slug: string;
-  image: string;
-  lastChapter: string;
-  chapterTitle: string;
-  lastReadAt: string;
-}
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+
+type ApiOk<T> = { success: true; data: T; meta?: unknown };
+type ApiErr = { success: false; error: { message: string; code: string; status: number } };
+
 interface ComicHistory {
-  lastReadChapterId: number;
   lastReadChapterNumber: number;
   lastReadAt: string;
 }
+interface SubComic {
+  title: string;
+  slug: string;
+  image: string;
+}
 interface Comic {
-  title: string;
-  slug: string;
-  image: string;
-}
-// Interface cho dữ liệu từ thiết bị (kết hợp thông tin từ API và localStorage)
-interface DeviceComicWithHistory {
-  slug: string;
-  title: string;
-  image: string;
   id: number;
-  chapterNumber: number;
+  title: string;
+  slug: string;
+  image: string;
+  lastChapter: number;
+  chapterTitle?: string;
   lastReadAt: string;
 }
 
-// Interface cho item trong localStorage
-interface ReadingHistoryItem {
-  comicId: number;
-  chapterId: number;
-  chapterNumber: number;
-  lastReadAt: string;
-}
-
-const DETAILED_HISTORY_KEY = 'detailed_reading_history';
+const DETAILED_HISTORY_KEY = "detailed_reading_history";
 
 export default function MyReadingHistory() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [accountComics, setAccountComics] = useState<AccountComic[]>([]);
-  const [deviceComics, setDeviceComics] = useState<DeviceComicWithHistory[]>([]);
+  const [accountComics, setAccountComics] = useState<Comic[]>([]);
+  const [deviceComics, setDeviceComics] = useState<Comic[]>([]);
   const navigate = useNavigate();
-  const [loading, setLoading] = useState({
-    account: false,
-    device: false
-  });
-  const [error, setError] = useState({
-    account: '',
-    device: ''
-  });
+  const [loading, setLoading] = useState({ account: false, device: false });
 
   // Kiểm tra đăng nhập
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     setIsLoggedIn(!!token);
   }, []);
 
-  // Lấy dữ liệu từ tài khoản
-  const fetchAccountHistory = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    setLoading(prev => ({ ...prev, account: true }));
-    setError(prev => ({ ...prev, account: '' }));
-
-    try {
-      const response = await axios.get<AccountComic[]>(`${import.meta.env.VITE_API_URL}/history`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setAccountComics(response.data);
-    } catch (err) {
-      console.error('Lỗi khi lấy lịch sử từ tài khoản:', err);
-      setError(prev => ({ ...prev, account: 'Không thể tải lịch sử từ tài khoản' }));
-    } finally {
-      setLoading(prev => ({ ...prev, account: false }));
-    }
-  };
-
-  // Lấy dữ liệu từ thiết bị
-  const fetchDeviceHistory = async () => {
-      setLoading(prev => ({ ...prev, device: true }));
-      setError(prev => ({ ...prev, device: '' }));
-
-      try {
-          const localHistoryJson = localStorage.getItem(DETAILED_HISTORY_KEY);
-          if (!localHistoryJson) {
-              setDeviceComics([]);
-              return;
-          }
-
-          const historyObject: { [comicId: string]: ComicHistory } = JSON.parse(localHistoryJson);
-
-          // 1. Chuẩn bị dữ liệu từ localStorage
-          const sortedHistory = Object.entries(historyObject)
-              .map(([comicId, comicData]) => ({
-                  id: Number(comicId),
-                  lastReadAt: comicData.lastReadAt,
-                  chapterNumber: comicData.lastReadChapterNumber,
-              }))
-              .sort((a, b) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime());
-
-          // 2. Gọi API để lấy thông tin chi tiết MỘT CÁCH SONG SONG (hiệu quả hơn vòng lặp)
-          const historyWithDetails = await Promise.all(
-              sortedHistory.map(async (historyItem) => {
-                  try {
-                      const response = await axios.get<Comic>(
-                          `${import.meta.env.VITE_API_URL}/comics/id/${historyItem.id}`
-                      );
-                      
-                      // 3. Kết hợp dữ liệu từ localStorage và API
-                      return {
-                          id: historyItem.id,
-                          title: response.data.title,
-                          slug: response.data.slug,
-                          image: response.data.image,
-                          chapterNumber: historyItem.chapterNumber,
-                          lastReadAt: historyItem.lastReadAt,
-                      } as DeviceComicWithHistory;
-
-                  } catch (err) {
-                      console.error(`Lỗi khi lấy thông tin truyện ID: ${historyItem.id}`, err);
-                      return null; // Trả về null nếu API cho truyện này bị lỗi
-                  }
-              })
-          );
-          
-          const validComics = historyWithDetails.filter((comic): comic is DeviceComicWithHistory => comic !== null);
-
-          setDeviceComics(validComics);
-
-      } catch (err) {
-          console.error('Lỗi khi xử lý lịch sử từ thiết bị:', err);
-          setError(prev => ({ ...prev, device: 'Không thể tải lịch sử từ thiết bị' }));
-          setDeviceComics([]);
-      } finally {
-          setLoading(prev => ({ ...prev, device: false }));
-      }
-  };
-  // Tự động load dữ liệu khi tab thay đổi
+  // Fetch thiết bị khi mount
   useEffect(() => {
     fetchDeviceHistory();
   }, []);
 
+  // Chuyển tab → nếu vào "account" và đã login thì fetch
   const handleTabChange = (value: string) => {
-    if (value === 'account' && isLoggedIn) {
+    if (value === "account" && isLoggedIn) {
       fetchAccountHistory();
     }
   };
 
-  const handleDelete = async (comicId: number, type: 'account' | 'device') => {
-    if (type === 'account') {
-      const token = localStorage.getItem('token');
-      if (!token) return;
+  // Fetch từ tài khoản (envelope chuẩn)
+  const fetchAccountHistory = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setIsLoggedIn(false);
+      return;
+    }
 
-      try {
-        await axios.delete(`${import.meta.env.VITE_API_URL}/history/${comicId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setAccountComics(prev => prev.filter(c => c.id !== comicId));
-      } catch (err) {
-        console.error('Lỗi xoá lịch sử account:', err);
+    setLoading((p) => ({ ...p, account: true }));
+
+    try {
+      const res = await axios.get<ApiOk<Comic[]> | ApiErr>(
+        `${import.meta.env.VITE_API_URL}/history`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data.success) {
+        setAccountComics((res.data as ApiOk<Comic[]>).data || []);
+      } else {
+        const err = res.data as ApiErr;
+        toast.error(err.error?.message || "Không thể tải lịch sử từ tài khoản.");
       }
-    } else if (type === 'device') {
-      try {
-        const historyJson = localStorage.getItem(DETAILED_HISTORY_KEY);
-        if (!historyJson) return;
-
-        const history: ReadingHistoryItem[] = JSON.parse(historyJson);
-        const updatedHistory = history.filter(item => item.comicId !== comicId);
-
-        localStorage.setItem(DETAILED_HISTORY_KEY, JSON.stringify(updatedHistory));
-        setDeviceComics(prev => prev.filter(c => c.id !== comicId));
-      } catch (err) {
-        console.error('Lỗi xoá lịch sử device:', err);
+    } catch (error: any) {
+      if (error?.response?.status === 401) {
+        toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        handleLoginRedirect();
+        setIsLoggedIn(false);
+      } else {
+        const msg =
+          error?.response?.data?.error?.message ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Không thể tải lịch sử từ tài khoản.";
+        toast.error(msg);
       }
+    } finally {
+      setLoading((p) => ({ ...p, account: false }));
     }
   };
 
+  // Fetch từ thiết bị (localStorage + gọi chi tiết song song)
+  const fetchDeviceHistory = async () => {
+    setLoading((p) => ({ ...p, device: true }));
+    try {
+      const raw = localStorage.getItem(DETAILED_HISTORY_KEY);
+
+      if (!raw) {
+        setDeviceComics([]);
+        return;
+      }
+
+      // Lưu ý: khóa hiện tại là OBJECT { [comicId]: ComicHistory }
+      const historyObj: Record<string, ComicHistory> = JSON.parse(raw);
+
+      const sorted = Object.entries(historyObj)
+        .map(([comicId, h]) => ({
+          id: Number(comicId),
+          lastChapter: h.lastReadChapterNumber,
+          lastReadAt: h.lastReadAt,
+        }))
+        .sort(
+          (a, b) =>
+            new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime()
+        );
+
+      // Gọi chi tiết song song
+      const details = await Promise.all(
+        sorted.map(async (item) => {
+          try {
+            const res = await axios.get<ApiOk<SubComic> | ApiErr>(
+              `${import.meta.env.VITE_API_URL}/comics/id/${item.id}`
+            );
+            if (!res.data.success) return null;
+
+            const d = (res.data as ApiOk<SubComic>).data;
+            return {
+              id: item.id,
+              title: d.title,
+              slug: d.slug,
+              image: d.image,
+              lastChapter: item.lastChapter,
+              lastReadAt: item.lastReadAt,
+            } as Comic;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      setDeviceComics(details.filter((x): x is Comic => x !== null));
+    } catch (error) {
+      const msg =
+        (error as any)?.message || "Không thể tải lịch sử từ thiết bị.";
+      toast.error(msg);
+      setDeviceComics([]);
+    } finally {
+      setLoading((p) => ({ ...p, device: false }));
+    }
+  };
+
+  // Xoá lịch sử
+  const handleDelete = async (comicId: number, type: "account" | "device") => {
+    if (type === "account") {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Bạn chưa đăng nhập.");
+        return;
+      }
+
+      // Optimistic update
+      const prev = accountComics;
+      setAccountComics((p) => p.filter((c) => c.id !== comicId));
+
+      try {
+        const res = await axios.delete<ApiOk<string> | ApiErr>(
+          `${import.meta.env.VITE_API_URL}/history/${comicId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (res.data.success) {
+          toast.success("Đã xoá lịch sử đọc.");
+        } else {
+          setAccountComics(prev); // rollback
+          const err = res.data as ApiErr;
+          toast.error(err.error?.message || "Xoá lịch sử thất bại.");
+        }
+      } catch (error: any) {
+        setAccountComics(prev); // rollback
+        const msg =
+          error?.response?.data?.error?.message ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Xoá lịch sử thất bại.";
+        toast.error(msg);
+      }
+    } else {
+      // DEVICE: lưu theo OBJECT => xoá key rồi ghi lại
+      try {
+        const raw = localStorage.getItem(DETAILED_HISTORY_KEY);
+        if (!raw) return;
+
+        const obj: Record<string, ComicHistory> = JSON.parse(raw);
+        delete obj[String(comicId)];
+        localStorage.setItem(DETAILED_HISTORY_KEY, JSON.stringify(obj));
+
+        setDeviceComics((p) => p.filter((c) => c.id !== comicId));
+        toast.success("Đã xoá lịch sử trên thiết bị.");
+      } catch (error: any) {
+        const msg =
+          error?.message || "Xoá lịch sử trên thiết bị thất bại.";
+        toast.error(msg);
+      }
+    }
+  };
+  
+
+
   const formatNumber = (num: unknown) => {
     const parsed = typeof num === "number" ? num : Number(num);
-    if (isNaN(parsed)||parsed === 0) return "mới";
-    return Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2).replace(/\.?0+$/, "");
+    if (isNaN(parsed) || parsed === 0) return "mới";
+    return Number.isInteger(parsed)
+      ? parsed.toString()
+      : parsed.toFixed(2).replace(/\.?0+$/, "");
   };
+
   const handleLoginRedirect = () => {
-    // Chuyển hướng đến trang đăng nhập
-    navigate(
-        `/auth/login?redirect=${encodeURIComponent(window.location.pathname)}`
-    );
+    navigate(`/auth/login?redirect=${encodeURIComponent(window.location.pathname)}`);
   };
 
   return (
     <div className="min-h-screen p-4 sm:p-8">
       <Tabs defaultValue="device" onValueChange={handleTabChange} className="w-full">
-        {/* Phần chọn Tab */}
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="device">Từ thiết bị</TabsTrigger>
           <TabsTrigger value="account">Từ tài khoản</TabsTrigger>
         </TabsList>
 
-        {/* Nội dung Tab "Từ thiết bị" */}
+        {/* Thiết bị */}
         <TabsContent value="device">
           {loading.device ? (
             <div className="flex justify-center items-center h-64">
               <p>Đang tải lịch sử từ thiết bị...</p>
-            </div>
-          ) : error.device ? (
-            <div className="flex justify-center items-center h-64 text-red-500">
-              <p>{error.device}</p>
             </div>
           ) : deviceComics.length === 0 ? (
             <div className="flex justify-center items-center h-64">
@@ -228,22 +249,21 @@ export default function MyReadingHistory() {
                   imageUrl={comic.image}
                   title={comic.title}
                   href={`/truyen-tranh/${comic.slug}`}
-                  continueReadingText={`Chương ${comic.chapterNumber}`}
-                  continueReadingUrl={`/truyen-tranh/${comic.slug}/chapter/${comic.chapterNumber}`}
-                  onDelete={() => handleDelete(comic.id, 'device')}
+                  continueReadingText={`Chương ${formatNumber(comic.lastChapter)}`}
+                  continueReadingUrl={`/truyen-tranh/${comic.slug}/chapter/${formatNumber(comic.lastChapter)}`}
+                  lastReadAt={comic.lastReadAt}
+                  onDelete={() => handleDelete(comic.id, "device")}
                 />
               ))}
             </div>
           )}
         </TabsContent>
 
-        {/* Nội dung Tab "Từ tài khoản" */}
+        {/* Tài khoản */}
         <TabsContent value="account">
           {!isLoggedIn ? (
             <div className="flex flex-col items-center justify-center text-center h-64 rounded-lg mt-6">
-              <p className="">
-                Vui lòng đăng nhập để xem và đồng bộ lịch sử đọc truyện của bạn.
-              </p>
+              <p>Vui lòng đăng nhập để xem và đồng bộ lịch sử đọc truyện của bạn.</p>
               <Button className="mt-4" onClick={handleLoginRedirect}>
                 Đi đến trang đăng nhập
               </Button>
@@ -251,10 +271,6 @@ export default function MyReadingHistory() {
           ) : loading.account ? (
             <div className="flex justify-center items-center h-64">
               <p>Đang tải lịch sử từ tài khoản...</p>
-            </div>
-          ) : error.account ? (
-            <div className="flex justify-center items-center h-64 text-red-500">
-              <p>{error.account}</p>
             </div>
           ) : accountComics.length === 0 ? (
             <div className="flex justify-center items-center h-64">
@@ -268,9 +284,10 @@ export default function MyReadingHistory() {
                   imageUrl={comic.image}
                   title={comic.title}
                   href={`/truyen-tranh/${comic.slug}`}
-                  continueReadingText={`${comic.chapterTitle || `Chương ${comic.lastChapter}`}`}
+                  continueReadingText={comic.chapterTitle || `Chương ${formatNumber(comic.lastChapter)}`}
                   continueReadingUrl={`/truyen-tranh/${comic.slug}/chapter/${formatNumber(comic.lastChapter)}`}
-                  onDelete={() => handleDelete(comic.id, 'account')}
+                  lastReadAt={comic.lastReadAt}
+                  onDelete={() => handleDelete(comic.id, "account")}
                 />
               ))}
             </div>

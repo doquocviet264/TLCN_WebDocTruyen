@@ -27,7 +27,7 @@ export interface UpdateProfileResponse {
     birthday: string | null;
     avatar: string | null;
     joinDate: string; // Tên trường này khác với API
-    updatedAt: string;
+    updatedAt: string; 
   };
 }
 
