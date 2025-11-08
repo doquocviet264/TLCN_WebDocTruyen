@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "react-toastify";
+import { Link } from "react-router-dom";
 import PostComments from "./PostComments";
 
 /** ================== Types khớp với backend (FeedRespItem) ================== */
@@ -165,6 +166,7 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
 
   useEffect(() => {
     setLocalPost(post);
+    console.log(post);
   }, [post]);
 
   useEffect(() => {
@@ -263,12 +265,12 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
               {/* Dòng tổng quan: tên comic + sao trung bình */}
               <div className="text-sm flex items-center gap-2">
                 {!!localPost.comic?.title && (
-                  <a
-                    href={localPost.comic?.slug ? `/truyen-tranh/${localPost.comic.slug}` : "#"}
+                  <Link
+                    to={localPost.comic?.slug ? `/truyen-tranh/${localPost.comic.slug}` : "#"}
                     className="hover:underline"
                   >
                     {localPost.comic.title}
-                  </a>
+                  </Link>
                 )}
                 <span className="inline-flex items-center gap-1">
                   {Array.from({ length: 5 }, (_, i) => (
