@@ -136,7 +136,7 @@ module.exports = ({ model, notificationRepo, deliveryRepo }) => {
         userIds.forEach((uid) => targets.push({ notificationId: notification.notificationId, userId: uid }));
       } else if (userId) {
         targets.push({ notificationId: notification.notificationId, userId });
-      }
+      } 
 
       if (targets.length > 0) {
         await deliveryRepo.bulkCreate(targets, { model });

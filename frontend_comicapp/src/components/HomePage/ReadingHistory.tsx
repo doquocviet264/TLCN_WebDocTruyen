@@ -102,7 +102,7 @@ export default function ReadingHistory() {
                   title: d.title,
                   slug: d.slug,
                   image: d.image,
-                  lastChapter: item.lastChapter,
+                  lastChapter: item.lastReadChapterNumber,
                   lastReadAt: item.lastReadAt,
                 } as Comic;
               } catch (error) { 

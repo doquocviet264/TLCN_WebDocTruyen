@@ -83,6 +83,89 @@ module.exports = (sequelize, DataTypes) => {
     { tableName: "UserQuests", timestamps: true, createdAt: "assignedDate", updatedAt: false }
   );
 
+  db.Post = sequelize.define(
+  "Post",
+  {
+    postId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    userId: { type: DataTypes.INTEGER, allowNull: false },
+
+    comicId: { type: DataTypes.INTEGER, allowNull: true }, 
+
+    type: {
+      type: DataTypes.ENUM("review", "find_similar"),
+      allowNull: false,
+    },
+
+    ratingStoryLine: { type: DataTypes.TINYINT.UNSIGNED, allowNull: true, validate: { min: 1, max: 5 } },
+    ratingCharacters:{ type: DataTypes.TINYINT.UNSIGNED, allowNull: true, validate: { min: 1, max: 5 } },
+    ratingArt:        { type: DataTypes.TINYINT.UNSIGNED, allowNull: true, validate: { min: 1, max: 5 } },
+    ratingEmotion:    { type: DataTypes.TINYINT.UNSIGNED, allowNull: true, validate: { min: 1, max: 5 } },
+    ratingCreativity: { type: DataTypes.TINYINT.UNSIGNED, allowNull: true, validate: { min: 1, max: 5 } },
+
+    title:   { type: DataTypes.STRING(255), allowNull: false },
+    content: { type: DataTypes.TEXT, allowNull: false },
+
+  },
+  {
+    tableName: "posts",
+    timestamps: true,
+  }
+);
+  db.PostImage = sequelize.define(
+  "PostImage",
+  {
+    postimageId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    postId:      { type: DataTypes.INTEGER, allowNull: false },
+    imageUrl:    { type: DataTypes.STRING(500), allowNull: false },
+    imageNumber: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false, defaultValue: 0 },
+  },
+  {
+    tableName: "postimages",
+    timestamps: true,
+    createdAt: true,
+    updatedAt: false,
+  }
+);
+
+db.PostGenre = sequelize.define(
+  "PostGenre",
+  {
+    postId:  { type: DataTypes.INTEGER, allowNull: false, primaryKey: true },
+    genreId: { type: DataTypes.INTEGER, allowNull: false, primaryKey: true },
+  },
+  { tableName: "postgenres", timestamps: false }
+);
+
+db.PostLike = sequelize.define(
+  "PostLike",
+  {
+    userId:    { type: DataTypes.INTEGER, allowNull: false, primaryKey: true },
+    postId:    { type: DataTypes.INTEGER, allowNull: false, primaryKey: true },
+  },
+  {
+    tableName: "postlikes",
+    timestamps: true,
+    createdAt: true,
+    updatedAt: false,
+  }
+);
+
+db.PostComment = sequelize.define(
+  "PostComment",
+  {
+    commentId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    postId:    { type: DataTypes.INTEGER, allowNull: false },
+    userId:    { type: DataTypes.INTEGER, allowNull: false },
+    parentId:  { type: DataTypes.INTEGER, allowNull: true },
+    content:   { type: DataTypes.TEXT, allowNull: false },
+  },
+  {
+    tableName: "postcomments",
+    timestamps: true,
+    createdAt: true,
+    updatedAt: false,
+  }
+);
   // ===================== Associations =====================
 
   // Comic <-> Genre (M:N)
@@ -185,6 +268,60 @@ module.exports = (sequelize, DataTypes) => {
   // User <-> Report (1:N)
   db.User.hasMany(db.Report, { foreignKey: "userId", as: "reports" });
   db.Report.belongsTo(db.User, { foreignKey: "userId", as: "user" });
+
+  // Post ↔ User
+  db.Post.belongsTo(db.User, { foreignKey: "userId", as: "author" });
+  db.User.hasMany(db.Post, { foreignKey: "userId", as: "posts" });
+
+  // Post ↔ Comic
+  db.Post.belongsTo(db.Comic, { foreignKey: "comicId", as: "comic" });
+  db.Comic.hasMany(db.Post, { foreignKey: "comicId", as: "posts" });
+
+  // Post ↔ PostImage
+  db.Post.hasMany(db.PostImage, { foreignKey: "postId", as: "images" });
+  db.PostImage.belongsTo(db.Post, { foreignKey: "postId" });
+
+  // Post ↔ Genre
+  db.Post.belongsToMany(db.Genre, {
+    through: db.PostGenre,
+    foreignKey: "postId",
+    otherKey: "genreId",
+    as: "genres",
+  });
+  db.Genre.belongsToMany(db.Post, {
+    through: db.PostGenre,
+    foreignKey: "genreId",
+    otherKey: "postId",
+    as: "posts",
+  });
+
+  // User ↔ PostLike
+  db.User.belongsToMany(db.Post, {
+    through: db.PostLike,
+    foreignKey: "userId",
+    otherKey: "postId",
+    as: "LikedPosts",
+  });
+  db.Post.belongsToMany(db.User, {
+    through: db.PostLike,
+    foreignKey: "postId",
+    otherKey: "userId",
+    as: "Likers",
+  });
+
+  // Post ↔ PostComment
+  db.Post.hasMany(db.PostComment, { foreignKey: "postId", as: "comments" });
+  db.PostComment.belongsTo(db.Post, { foreignKey: "postId" });
+
+  // User ↔ PostComment
+  db.User.hasMany(db.PostComment, { foreignKey: "userId", as: "postComments" });
+  db.PostComment.belongsTo(db.User, { foreignKey: "userId", as: "author" });
+
+  // PostComment self-reference (reply)
+  db.PostComment.hasMany(db.PostComment, { foreignKey: "parentId", as: "replies" });
+  db.PostComment.belongsTo(db.PostComment, { foreignKey: "parentId", as: "parent" });
+
+
 
   return db;
 };

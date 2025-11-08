@@ -1,12 +1,13 @@
 // app/services/chapter.service.js
 const AppError = require("../utils/AppError");
 const cloudinary = require("../config/cloudinary"); 
-
+ const makeNotificationService = require("./notification.service.js")
 module.exports = ({
   sequelize,
   model,
   repos, // { comicRepo, chapterRepo, chapterImageRepo, chapterUnlockRepo, walletRepo, transactionRepo }
 }) => {
+  
   return {
     // GET /:slug/:chapterNumber
     async getChapterDetails({ slug, chapterNumber }) {

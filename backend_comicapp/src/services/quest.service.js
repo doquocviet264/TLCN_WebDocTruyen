@@ -154,5 +154,6 @@ module.exports = ({ sequelize, model, repos }) => {
         completed: newProgress >= userQuest.Quest.targetValue,
       };
     },
+    
   };
 };

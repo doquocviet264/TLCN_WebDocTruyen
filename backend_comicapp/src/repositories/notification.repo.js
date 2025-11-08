@@ -4,7 +4,7 @@ module.exports = {
     return model.Notification.create(data, { transaction });
   },
 
-  // options: { where, order, limit, offset, attributes, include }
+  // options: { where, order, limit, offset, attributes, include } 
   findAll(
     { where = {}, order = [["createdAt", "DESC"]], limit = 100, offset = 0, attributes, include } = {},
     { model } = {}

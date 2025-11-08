@@ -2,11 +2,11 @@
 const chapter = require("../models/chapter.js");
 const AppError = require("../utils/AppError");
 const { parsePaging, buildMeta } = require('../utils/paging'); 
-const { updateQuestProgress } = require("./update-quest.service.js"); // giữ tên file bạn đang dùng
-
+const { updateQuestProgress } = require("./update-quest.service.js");
+const makeNotificationService = require("./notification.service.js")
 module.exports = ({ sequelize, model, repos }) => {
   const { commentRepo, commentLikeRepo, notificationRepo, reportRepo } = repos;
-
+  const notificationService = makeNotificationService({ model, notificationRepo, deliveryRepo: repos.deliveryRepo });
   return {
     // GET /comments/comic/:slug?page=
     async getCommentsByComic({ slug, page = 1, limit = 10, userId = null }) {
@@ -170,9 +170,18 @@ module.exports = ({ sequelize, model, repos }) => {
 
     // DELETE /admin/comments/:id
     async deleteComment({ id }) {
-      const comment = await commentRepo.findByPk(id, { model });
+      const comment = await commentRepo.findByPk(id, {
+        model,
+        include: [
+          {
+            model: model.User,
+            attributes: ["userId", "username", "email"], // lấy các field cần
+          },
+        ],
+      });
       if (!comment) throw new AppError("Không tìm thấy bình luận.", 404, "COMMENT_NOT_FOUND");
-
+      const ownerId = comment.userId;
+      const reason =  "Vi phạm quy định";
       await sequelize.transaction(async (t) => {
         // Xoá likes
         await commentLikeRepo.destroy({ commentId: id }, { model, transaction: t });
@@ -180,22 +189,20 @@ module.exports = ({ sequelize, model, repos }) => {
         // Xoá reply
         await commentRepo.destroy({ parentId: id }, { model, transaction: t });
 
-        // Xoá report
-        await reportRepo.destroy({ targetId: id, type: "comment" }, { model, transaction: t });
-
         // Xoá comment chính
         await comment.destroy({ transaction: t });
 
-        // Gửi thông báo
-        await notificationRepo.create(
-          {
-            userId: comment.userId,
+        // Chỉ gửi thông báo sau khi COMMIT thành công
+        t.afterCommit(async () => {
+          await notificationService.createAndNotify({
             category: "comment",
-            title: "Bình luận của bạn đã bị xóa",
-            message: "Bình luận của bạn đã bị quản trị viên xóa do vi phạm quy định.",
-          },
-          { model, transaction: t }
-        );
+            audienceType: "direct",
+            userId: ownerId,
+            title: "Bình luận đã bị xóa",
+            message: `Bình luận của bạn (ID #${id}) đã bị xóa bởi quản trị viên.`,
+            extra: { targetType: "comment", targetId: id, action: "delete", reason },
+          });
+        });
       });
 
       return { message: "Đã xóa bình luận và gửi thông báo cho người dùng." };

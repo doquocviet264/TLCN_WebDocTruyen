@@ -1,12 +1,13 @@
 import { NavLink, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { Home, Heart, TrendingUp, BookOpen, Clock, History, Grid3X3, Search } from "lucide-react"
+import { Home, Heart, TrendingUp, BookOpen, Clock, History, Grid3X3, Search, Users, } from "lucide-react"
 
 const navItems = [
   { href: "/", label: "Trang chủ", icon: Home },
   { href: "/following", label: "Theo dõi", icon: Heart },
   { href: "/history", label: "Lịch sử", icon: History },
   { href: "/search", label: "Tìm truyện", icon: Search },
+  { href: "/community", label: "Cộng đồng", icon: Users }
 ]
 
 export default function Navbar() {

@@ -43,7 +43,6 @@ export default function RelatedComics({ relatedComics}: RelatedComicsProps) {
     if (interval > 1) return Math.floor(interval) + " phút trước";
     return Math.floor(seconds) + " giây trước";
   };
-  console.log("Related Comics:", relatedComics);
 
   return (
     <Card className="p-4 sm:p-6 bg-card/50 backdrop-blur-sm border-border/50">
