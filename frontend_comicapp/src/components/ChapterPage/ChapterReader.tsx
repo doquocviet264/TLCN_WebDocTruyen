@@ -1,28 +1,36 @@
-import { useEffect, useRef, createRef, RefObject  } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  createRef,
+  RefObject,
+} from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useDetailedReadingHistory } from "../../hook/useReadingHistory";
-import { audioCues } from '../../mocks/mock-audio-script';
+import { audioCues } from "../../mocks/mock-audio-script";
+
 interface ChapterReaderProps {
   loading: boolean;
   images: string[];
   imageWidth: string; // vd: 'max-w-3xl'
-  readingMode: 'long-strip' | 'paginated';
+  readingMode: "long-strip" | "paginated";
   currentPage: number;
-  changePage: (direction: 'next' | 'prev') => void;
+  changePage: (direction: "next" | "prev") => void;
   comicId: number;
   chapterId: number;
   chapterNumber: number;
-  // Props cho tính năng tự động chạy
+  // auto play
   isAutoPlayOn: boolean;
   autoScrollSpeed: number;
   autoPageInterval: number;
   setIsAutoPlayOn: (value: boolean) => void;
-  scrollToImageIndex: number;
-
+  // index cần scroll tới lúc vào chapter (từ lịch sử đọc)
+  scrollToImageIndex?: number | null;
+  // audio mode
   isAudioModeOn: boolean;
-  audioRef: RefObject<HTMLAudioElement>;
+  audioRef: RefObject<HTMLAudioElement | null>;
 }
 
 export function ChapterReader({
@@ -43,134 +51,268 @@ export function ChapterReader({
   isAudioModeOn,
   audioRef,
 }: ChapterReaderProps) {
-  
-  // Hook để lưu lịch sử đọc
+  // refs cho từng ảnh
+  const imageRefs = useRef<RefObject<HTMLImageElement>[]>([]);
+  const intervalRef = useRef<number | null>(null);
+
+  // index ảnh đang "được xem" ở chế độ cuộn
+  const [visibleIndex, setVisibleIndex] = useState(0);
+
+  // số ảnh đã load (để biết khi nào được phép scroll tới trang lịch sử)
+  const [loadedCount, setLoadedCount] = useState(0);
+
+  // flag đảm bảo chỉ auto-scroll tới lịch sử 1 lần khi đã thành công
+  const hasScrolledToInitial = useRef(false);
+
+  // Tạo ref cho từng ảnh khi images thay đổi
+  useEffect(() => {
+    imageRefs.current = images.map(
+      (_, i) => imageRefs.current[i] ?? createRef<HTMLImageElement>()
+    );
+    setLoadedCount(0);
+    hasScrolledToInitial.current = false;
+  }, [images, chapterId]);
+
+  // Reset khi đổi chapter hoặc đổi mode
+  useEffect(() => {
+    setVisibleIndex(0);
+    hasScrolledToInitial.current = false;
+
+    if (readingMode === "long-strip") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [chapterId, readingMode]);
+
+  // Auto-scroll tới trang đã đọc (scrollToImageIndex) ở long-strip,
+  useEffect(() => {
+    if (readingMode !== "long-strip") return;
+    if (scrollToImageIndex == null) return;
+    if (hasScrolledToInitial.current) return;
+    if (!images.length) return;
+
+    const idx = Math.min(
+      Math.max(scrollToImageIndex, 0),
+      images.length - 1
+    );
+
+    // cần ít nhất (idx + 1) ảnh load xong
+    if (loadedCount < idx + 1) return;
+
+    const ref = imageRefs.current[idx];
+    const el = ref?.current;
+    if (!el) return;
+
+    const offset = 0; // nếu có header fixed, set số px ở đây
+    const top = el.offsetTop - offset;
+
+    console.log("[ScrollInit] scroll to index", idx, "=> top:", top);
+
+    window.scrollTo({ top, behavior: "auto" });
+    hasScrolledToInitial.current = true;
+  }, [
+    readingMode,
+    scrollToImageIndex,
+    images.length,
+    chapterId,
+    loadedCount,
+  ]);
+
+  // Xác định ảnh hiện tại cho long-strip bằng scroll + requestAnimationFrame
+  useEffect(() => {
+    if (readingMode !== "long-strip") return;
+    if (!images.length) return;
+
+    let frameId: number | null = null;
+
+    const computeVisible = () => {
+      const refs = imageRefs.current;
+      if (!refs.length) return;
+
+      const targetY = window.innerHeight * 0.25;
+      let bestIndex = 0;
+      let bestDist = Infinity;
+
+      refs.forEach((ref, index) => {
+        const el = ref.current;
+        if (!el) return;
+
+        const rect = el.getBoundingClientRect();
+        const focusY = rect.top + rect.height / 3;
+        const dist = Math.abs(focusY - targetY);
+
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIndex = index;
+        }
+      });
+
+      setVisibleIndex((prev) =>
+        prev !== bestIndex ? bestIndex : prev
+      );
+    };
+
+    const handleScroll = () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(computeVisible);
+    };
+
+    computeVisible();
+
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [readingMode, images.length, chapterId]);
+
+  // Lưu lịch sử đọc: long-strip dùng visibleIndex, paginated dùng currentPage
   useDetailedReadingHistory({
     comicId,
     chapterId,
-    chapterNumber
+    chapterNumber,
+    pageNumber:
+      readingMode === "long-strip" ? visibleIndex : currentPage,
   });
 
-  // Tạo một ref để giữ một mảng các ref cho mỗi ảnh
-const imageRefs = useRef<RefObject<HTMLImageElement>[]>([]);
-const animationFrameRef = useRef<number | null>(null);
-// Mỗi khi images thay đổi, đảm bảo đã có ref cho từng ảnh
-useEffect(() => {
-  imageRefs.current = images.map((_, i) => imageRefs.current[i] ?? createRef<HTMLImageElement>());
-}, [images]);
-
-//LOGIC CHO AUDIO SCROLLING
-useEffect(() => {
-  const audio = audioRef.current;
-  if (!audio) return;
-  let animationFrameId: number;
-
-  const updateScroll = () => {
-    const currentTime = audio.currentTime;
-
-    // Tìm cue hiện tại và cue tiếp theo
-    const currentCueIndex = audioCues.slice().reverse().findIndex(cue => cue.timestamp <= currentTime);
-    if (currentCueIndex === -1) {
-      animationFrameId = requestAnimationFrame(updateScroll);
-      return;
-    }
-
-    const currentCue = audioCues[audioCues.length - 1 - currentCueIndex];
-    const nextCue = audioCues[audioCues.length - currentCueIndex];
-    if (!nextCue) {
-      animationFrameId = requestAnimationFrame(updateScroll);
-      return;
-    }
-
-    // Lấy phần tử ảnh tương ứng
-    const startEl = imageRefs.current[currentCue.imageIndex]?.current ?? null;
-    const endEl   = imageRefs.current[nextCue.imageIndex]?.current ?? null;
-    if (!startEl || !endEl) {
-      animationFrameId = requestAnimationFrame(updateScroll);
-      return;
-    }
-
-    const startY = startEl.getBoundingClientRect().top + window.scrollY;
-    const endY   = endEl.getBoundingClientRect().top + window.scrollY;
-
-    const segmentDuration = nextCue.timestamp - currentCue.timestamp;
-    const timeIntoSegment = currentTime - currentCue.timestamp;
-    const progress = Math.min(timeIntoSegment / segmentDuration, 1);
-
-    const newScrollY = startY + (endY - startY) * progress;
-
-    window.scrollTo({ top: newScrollY, behavior: 'auto' });
-
-    // Tiếp tục lặp
-    animationFrameId = requestAnimationFrame(updateScroll);
-  };
-
-  const handleWheel = (e: WheelEvent) => {
-    e.preventDefault();
-  };
-
-  if (isAudioModeOn && readingMode === 'long-strip') {
-    window.addEventListener('wheel', handleWheel, { passive: false });
-
-    // Bắt đầu phát audio và animation
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(err => console.error("Lỗi khi phát audio:", err));
-    }
-
-    animationFrameId = requestAnimationFrame(updateScroll);
-  }
-
-  return () => {
-    cancelAnimationFrame(animationFrameId);
-    window.removeEventListener('wheel', handleWheel);
-    if (!audio.paused) audio.pause();
-  };
-}, [isAudioModeOn, audioRef, readingMode, images]);
-
-  // Ref để lưu ID của interval, giúp quản lý và xóa nó một cách an toàn
-  const intervalRef = useRef<number | null>(null);
-
-  // useEffect để xử lý logic tự động chạy
+  // AUDIO SCROLLING
   useEffect(() => {
-    // Hàm cleanup để đảm bảo interval cũ bị xóa trước khi tạo cái mới
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    let animationFrameId: number;
+
+    const updateScroll = () => {
+      const currentTime = audio.currentTime;
+
+      const currentCueIndex = audioCues
+        .slice()
+        .reverse()
+        .findIndex((cue) => cue.timestamp <= currentTime);
+
+      if (currentCueIndex === -1) {
+        animationFrameId = requestAnimationFrame(updateScroll);
+        return;
+      }
+
+      const currentCue =
+        audioCues[audioCues.length - 1 - currentCueIndex];
+      const nextCue =
+        audioCues[audioCues.length - currentCueIndex];
+      if (!nextCue) {
+        animationFrameId = requestAnimationFrame(updateScroll);
+        return;
+      }
+
+      const startEl =
+        imageRefs.current[currentCue.imageIndex]?.current ?? null;
+      const endEl =
+        imageRefs.current[nextCue.imageIndex]?.current ?? null;
+
+      if (!startEl || !endEl) {
+        animationFrameId = requestAnimationFrame(updateScroll);
+        return;
+      }
+
+      const startY =
+        startEl.getBoundingClientRect().top + window.scrollY;
+      const endY =
+        endEl.getBoundingClientRect().top + window.scrollY;
+
+      const segmentDuration =
+        nextCue.timestamp - currentCue.timestamp;
+      const timeIntoSegment =
+        currentTime - currentCue.timestamp;
+      const progress = Math.min(
+        timeIntoSegment / segmentDuration,
+        1
+      );
+
+      const newScrollY =
+        startY + (endY - startY) * progress;
+
+      window.scrollTo({ top: newScrollY, behavior: "auto" });
+      animationFrameId = requestAnimationFrame(updateScroll);
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+
+    if (isAudioModeOn && readingMode === "long-strip") {
+      window.addEventListener("wheel", handleWheel, {
+        passive: false,
+      });
+
+      const playPromise = audio.play();
+      if (playPromise) {
+        playPromise.catch((err) =>
+          console.error("Lỗi khi phát audio:", err)
+        );
+      }
+
+      animationFrameId = requestAnimationFrame(updateScroll);
+    }
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener("wheel", handleWheel);
+      if (!audio.paused) audio.pause();
+    };
+  }, [isAudioModeOn, audioRef, readingMode, images, chapterId]);
+
+  // AUTO PLAY
+  useEffect(() => {
     const cleanup = () => {
-      if (intervalRef.current) {
+      if (intervalRef.current != null) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
 
-    // Nếu chế độ tự động chạy được bật
     if (isAutoPlayOn) {
-      if (readingMode === 'long-strip') {
-        const pixelsPerTick = autoScrollSpeed / 2; // Tinh chỉnh giá trị để tốc độ hợp lý
+      if (readingMode === "long-strip") {
+        const pixelsPerTick = autoScrollSpeed / 2;
         intervalRef.current = window.setInterval(() => {
-          // Kiểm tra nếu đã cuộn đến cuối trang
-          if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 10) { // Thêm 10px buffer
+          if (
+            window.innerHeight + window.scrollY >=
+            document.documentElement.scrollHeight - 10
+          ) {
             cleanup();
-            setIsAutoPlayOn(false); // Tắt tự động khi hết
+            setIsAutoPlayOn(false);
           } else {
             window.scrollBy(0, pixelsPerTick);
           }
-        }, 20); // Chạy mỗi 20ms để cuộn mượt
-      } else if (readingMode === 'paginated') {
+        }, 20);
+      } else if (readingMode === "paginated") {
         intervalRef.current = window.setInterval(() => {
-          // Kiểm tra nếu đang ở trang cuối
           if (currentPage >= images.length - 1) {
             cleanup();
-            setIsAutoPlayOn(false); // Tắt tự động khi hết trang
+            setIsAutoPlayOn(false);
           } else {
-            changePage('next');
+            changePage("next");
           }
-        }, autoPageInterval * 1000); // Chuyển giây sang mili giây
+        }, autoPageInterval * 1000);
       }
     }
 
-    // Trả về hàm cleanup, React sẽ gọi nó khi component unmount hoặc các dependency thay đổi
     return cleanup;
-  }, [isAutoPlayOn, readingMode, autoScrollSpeed, autoPageInterval, currentPage, images.length, changePage, setIsAutoPlayOn]);
+  }, [
+    isAutoPlayOn,
+    readingMode,
+    autoScrollSpeed,
+    autoPageInterval,
+    currentPage,
+    images.length,
+    changePage,
+    setIsAutoPlayOn,
+  ]);
 
+  // LOADING
   if (loading) {
     return (
       <div className={`mx-auto space-y-2 px-2 md:px-4 ${imageWidth}`}>
@@ -180,10 +322,11 @@ useEffect(() => {
     );
   }
 
+  // UI
   return (
     <div className={`mx-auto ${imageWidth} transition-all duration-300`}>
       <div className="flex flex-col items-center gap-1">
-        {readingMode === 'long-strip' ? (
+        {readingMode === "long-strip" ? (
           images.map((src, index) => (
             <img
               key={index}
@@ -192,6 +335,9 @@ useEffect(() => {
               alt={`Trang ${index + 1}`}
               className="w-full h-auto"
               loading="lazy"
+              onLoad={() => {
+                setLoadedCount((c) => c + 1);
+              }}
             />
           ))
         ) : (
@@ -205,7 +351,7 @@ useEffect(() => {
               <Button
                 variant="secondary"
                 size="icon"
-                onClick={() => changePage('prev')}
+                onClick={() => changePage("prev")}
                 disabled={currentPage === 0}
               >
                 <ChevronLeft className="h-6 w-6" />
@@ -213,7 +359,7 @@ useEffect(() => {
               <Button
                 variant="secondary"
                 size="icon"
-                onClick={() => changePage('next')}
+                onClick={() => changePage("next")}
                 disabled={currentPage === images.length - 1}
               >
                 <ChevronRight className="h-6 w-6" />

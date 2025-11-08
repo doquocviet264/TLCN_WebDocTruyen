@@ -4,6 +4,7 @@ const { body, param, query } = require("express-validator");
 const updateValidator = [
   body("comicId").isInt({ min: 1 }),
   body("chapterId").isInt({ min: 1 }),
+  body("pageNumber").optional({ checkFalsy: true }).isInt({ min: 0 }),
 ];
 
 const listValidator = [

@@ -5,7 +5,7 @@ const { updateQuestProgress } = require("./update-quest.service.js"); // đổi 
 module.exports = ({ sequelize, model, readingHistoryRepo, chapterRepo }) => {
   return {
     // POST /history/update
-    async updateReadingHistory({ userId, comicId, chapterId }) {
+    async updateReadingHistory({ userId, comicId, chapterId, pageNumber }) {
       if (!comicId || !chapterId) {
         throw new AppError("Thiếu comicId hoặc chapterId", 400, "VALIDATION_ERROR");
       }
@@ -21,11 +21,12 @@ module.exports = ({ sequelize, model, readingHistoryRepo, chapterRepo }) => {
       const existing = await readingHistoryRepo.findOne({ where: { userId, comicId } }, { model});
       if (existing) {
         existing.chapterId = chapterId;
+        existing.pageNumber = pageNumber; // Add pageNumber
         existing.lastReadAt = new Date();
         await existing.save();
       } else {
         await readingHistoryRepo.create(
-          { userId, comicId, chapterId, lastReadAt: new Date() },
+          { userId, comicId, chapterId, pageNumber, lastReadAt: new Date() }, // Add pageNumber
           { model}
         );
       }
@@ -45,6 +46,7 @@ module.exports = ({ sequelize, model, readingHistoryRepo, chapterRepo }) => {
         image: item.Comic?.coverImage,
         lastChapter: item.Chapter?.chapterNumber,
         chapterTitle: item.Chapter?.title,
+        pageNumber: item.pageNumber, // Add pageNumber
         lastReadAt: item.lastReadAt,
       }));
 
@@ -82,6 +84,7 @@ module.exports = ({ sequelize, model, readingHistoryRepo, chapterRepo }) => {
         image: item.Comic?.coverImage,
         lastChapter: item.Chapter?.chapterNumber,
         chapterTitle: item.Chapter?.title,
+        pageNumber: item.pageNumber, // Add pageNumber
         lastReadAt: item.lastReadAt,
       };
     },

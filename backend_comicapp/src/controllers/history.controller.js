@@ -5,8 +5,8 @@ const asyncHandler = require("../middlewares/asyncHandler");
 module.exports = (historyService) => ({
   updateReadingHistory: asyncHandler(async (req, res) => {
     const userId = req.user.userId;
-    const { comicId, chapterId } = req.body;
-    const data = await historyService.updateReadingHistory({ userId, comicId, chapterId });
+    const { comicId, chapterId, pageNumber } = req.body; // Add pageNumber
+    const data = await historyService.updateReadingHistory({ userId, comicId, chapterId, pageNumber }); // Pass pageNumber
     return ok(res, { data });
   }),
 

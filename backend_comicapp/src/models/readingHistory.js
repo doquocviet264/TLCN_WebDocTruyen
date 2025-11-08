@@ -17,6 +17,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    pageNumber: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: null
+    },
   }, {
     tableName: 'ReadingHistory',
     timestamps: true,
