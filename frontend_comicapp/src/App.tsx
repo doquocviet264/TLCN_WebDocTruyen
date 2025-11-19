@@ -19,6 +19,8 @@ import ChapterPage from "./pages/ChapterPage";
 import HistoryPage from "./pages/HistoryPage";
 import FollowPage from "./pages/FollowPage";
 import CommunityPage from "./pages/CommunityPage";
+import GroupsListPage from "./pages/GroupsListPage";
+import GroupDetailPage from "./pages/GroupDetailPage";
 // Admin pages
 import AdminLayout from "./layouts/AdminLayout";
 import Comics from "./pages/admin/ManageComics";
@@ -28,6 +30,11 @@ import Reports from "./pages/admin/ManageReport";
 import Comments from "./pages/admin/ManageComment";
 import Genres from "./pages/admin/ManageGenre";
 import Notifications from "./pages/admin/ManageNotification"; 
+
+import GroupLayout from "./layouts/GroupLayout";
+import GroupManagementPage from "./pages/GroupManagementPage";
+import GroupMembersManagementPage from "./pages/GroupMembersManagementPage";
+import GroupSettingsPage from "./pages/GroupSettingsPage";
 
 function App() {
   return (
@@ -50,6 +57,8 @@ function App() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/following" element={<FollowPage />} />
             <Route path="/community" element={<CommunityPage />} />
+            <Route path="/groups" element={<GroupsListPage />} />
+            <Route path="/groups/:groupId" element={<GroupDetailPage />} />
           </Route>
 
           {/* Admin layout */}
@@ -63,6 +72,13 @@ function App() {
 
             <Route path="genres" element={<Genres />} />
           </Route>
+
+          <Route path="/groups/:groupId/manage" element={<GroupLayout />}>
+            <Route path="" element={<GroupManagementPage />} />
+            <Route path="members" element={<GroupMembersManagementPage />} />
+            <Route path="settings" element={<GroupSettingsPage />} />
+          </Route>
+          
         </Routes>
 
         <ToastContainer position="top-right" autoClose={3000} />

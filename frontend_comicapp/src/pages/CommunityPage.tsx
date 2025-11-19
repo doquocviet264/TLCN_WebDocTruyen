@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import CommunityChat from '../components/CommunityPage/CommunityChat';
 import axios from "axios";
 import { CommunityHeader } from "../components/CommunityPage/CommunityHeader";
 import { CommunityComposer } from "../components/CommunityPage/CommunityComposer";
@@ -39,6 +40,7 @@ export default function CommunityPage() {
   const [type, setType] = useState<PostTypeOrAll>("all");
   const [sort, setSort] = useState<SortUI>("NEW");
   const [genres, setGenres] = useState<string[]>([]); // tên
+  const [isChatVisible, setIsChatVisible] = useState(false); // State to control chat visibility
 
   // Genres cho sidebar (fetch từ API)
   const [genresMaster, setGenresMaster] = useState<Genre[]>([]);
@@ -130,6 +132,35 @@ export default function CommunityPage() {
           {/* Bạn có thể hiển thị skeleton/loader khi genresLoading === true */}
         </aside>
       </main>
+
+      {/* Chat Button */}
+      <button
+        onClick={() => setIsChatVisible(!isChatVisible)}
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          width: '50px',
+          height: '50px',
+          borderRadius: '50%',
+          backgroundColor: '#007bff',
+          color: 'white',
+          border: 'none',
+          boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1001, // Ensure it's above the chat
+        }}
+        aria-label="Toggle chat"
+      >
+        {/* You can use an icon here, e.g., a chat bubble */}
+        💬
+      </button>
+
+      {/* Conditionally render the chat */}
+      {isChatVisible && <CommunityChat />}
     </div>
   );
 }

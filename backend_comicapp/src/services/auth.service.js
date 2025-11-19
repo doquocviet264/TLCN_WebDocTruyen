@@ -78,7 +78,7 @@ module.exports = ({ sequelize, model, userRepo }) => {
       await user.update({ lastLogin: new Date() });
       const payload = { user: { userId: user.userId, role: user.role } };
       const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "12h" });
-      return { token, role: user.role };
+      return { token, role: user.role, userId: user.userId };
     },
 
     async forgotPassword({ email }) {

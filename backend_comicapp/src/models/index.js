@@ -5,6 +5,7 @@ module.exports = (sequelize, DataTypes) => {
   db.Sequelize = Sequelize;
   db.sequelize = sequelize;
 
+  // Existing models
   db.User            = require("./user")(sequelize, DataTypes);
   db.Comic           = require("./comic")(sequelize, DataTypes);
   db.AlternateName   = require("./alternateName")(sequelize, DataTypes);
@@ -20,6 +21,15 @@ module.exports = (sequelize, DataTypes) => {
   db.Notification    = require("./notification")(sequelize, DataTypes);
   db.Report          = require("./report")(sequelize, DataTypes);
 
+  db.ChatChannel = require("./chatChannel")(sequelize, DataTypes); 
+  db.ChatMessage = require("./chatMessage")(sequelize, DataTypes); 
+  db.ChatMute = require("./chatMute")(sequelize, DataTypes);
+  db.ChatStrike = require("./chatStrike")(sequelize, DataTypes);
+  db.ChatUserChannelState = require("./chatUserChannelState")(sequelize, DataTypes);
+
+  db.TranslationGroup = require("./translationGroup")(sequelize, DataTypes);
+  db.TranslationGroupMember = require("./translationGroupMember")(sequelize, DataTypes);
+  // Existing join tables and custom models
   db.ComicFollow = sequelize.define(
     "ComicFollows",
     { followId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true } },
@@ -89,7 +99,7 @@ module.exports = (sequelize, DataTypes) => {
     postId: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     userId: { type: DataTypes.INTEGER, allowNull: false },
 
-    comicId: { type: DataTypes.INTEGER, allowNull: true }, 
+    comicId: { type: DataTypes.INTEGER, allowNull: true },
 
     type: {
       type: DataTypes.ENUM("review", "find_similar"),
@@ -320,6 +330,76 @@ db.PostComment = sequelize.define(
   // PostComment self-reference (reply)
   db.PostComment.hasMany(db.PostComment, { foreignKey: "parentId", as: "replies" });
   db.PostComment.belongsTo(db.PostComment, { foreignKey: "parentId", as: "parent" });
+
+  // ===================== Chat Associations =====================
+
+  // ChatChannel <-> ChatMessage (1:N)
+  db.ChatChannel.hasMany(db.ChatMessage, { foreignKey: 'channelId', as: 'messages' });
+  db.ChatMessage.belongsTo(db.ChatChannel, { foreignKey: 'channelId', as: 'channel' });
+
+  // User <-> ChatMessage (1:N)
+  db.User.hasMany(db.ChatMessage, { foreignKey: 'userId', as: 'messages' });
+  db.ChatMessage.belongsTo(db.User, { foreignKey: 'userId', as: 'sender' });
+
+  // User <-> ChatMessage (for deletedBy) (1:N)
+  db.User.hasMany(db.ChatMessage, { foreignKey: 'deletedBy', as: 'deletedMessages' });
+  db.ChatMessage.belongsTo(db.User, { foreignKey: 'deletedBy', as: 'deleter' });
+
+  // User <-> ChatUserChannelState (1:N)
+  db.User.hasMany(db.ChatUserChannelState, { foreignKey: 'userId', as: 'channelStates' });
+  db.ChatUserChannelState.belongsTo(db.User, { foreignKey: 'userId', as: 'user' });
+
+  // ChatChannel <-> ChatUserChannelState (1:N)
+  db.ChatChannel.hasMany(db.ChatUserChannelState, { foreignKey: 'channelId', as: 'userStates' });
+  db.ChatUserChannelState.belongsTo(db.ChatChannel, { foreignKey: 'channelId', as: 'channel' });
+
+  // User <-> ChatMute (1:N)
+  db.User.hasMany(db.ChatMute, { foreignKey: 'userId', as: 'mutes' });
+  db.ChatMute.belongsTo(db.User, { foreignKey: 'userId', as: 'user' });
+
+  // ChatChannel <-> ChatMute (1:N)
+  db.ChatChannel.hasMany(db.ChatMute, { foreignKey: 'channelId', as: 'mutes' });
+  db.ChatMute.belongsTo(db.ChatChannel, { foreignKey: 'channelId', as: 'channel' });
+
+  // User <-> ChatMute (for createdBy) (1:N)
+  db.User.hasMany(db.ChatMute, { foreignKey: 'createdBy', as: 'mutedBy' });
+  db.ChatMute.belongsTo(db.User, { foreignKey: 'createdBy', as: 'muter' });
+
+  // User <-> ChatStrike (1:N)
+  db.User.hasMany(db.ChatStrike, { foreignKey: 'userId', as: 'strikes' });
+  db.ChatStrike.belongsTo(db.User, { foreignKey: 'userId', as: 'user' });
+
+  // ChatChannel <-> ChatStrike (1:N)
+  db.ChatChannel.hasMany(db.ChatStrike, { foreignKey: 'channelId', as: 'strikes' });
+  db.ChatStrike.belongsTo(db.ChatChannel, { foreignKey: 'channelId', as: 'channel' });
+
+  // ChatMessage <-> ChatStrike (1:N)
+  db.ChatMessage.hasMany(db.ChatStrike, { foreignKey: 'messageId', as: 'strike' });
+  db.ChatStrike.belongsTo(db.ChatMessage, { foreignKey: 'messageId', as: 'message' });
+
+  // User <-> ChatStrike (for createdBy) (1:N)
+  db.User.hasMany(db.ChatStrike, { foreignKey: 'createdBy', as: 'strikeCreatedBy' });
+  db.ChatStrike.belongsTo(db.User, { foreignKey: 'createdBy', as: 'striker' });
+  
+  // User ↔ TranslationGroup (owner 1:N)
+  db.User.hasMany(db.TranslationGroup, { as: "ownedGroups", foreignKey: "ownerId" });
+  db.TranslationGroup.belongsTo(db.User, { as: "owner", foreignKey: "ownerId" });
+
+  // User ↔ TranslationGroup (members M:N)
+  db.User.belongsToMany(db.TranslationGroup, { as: "translationGroups", through: db.TranslationGroupMember, foreignKey: "userId", otherKey: "groupId" });
+  db.TranslationGroup.belongsToMany(db.User, { as: "members", through: db.TranslationGroupMember, foreignKey: "groupId", otherKey: "userId" });
+
+  // TranslationGroup ↔ TranslationGroupMember (1:N)
+  db.TranslationGroup.hasMany(db.TranslationGroupMember, { as: "memberLinks", foreignKey: "groupId" });
+  db.TranslationGroupMember.belongsTo(db.TranslationGroup, { as: "group", foreignKey: "groupId" });
+
+  // User ↔ TranslationGroupMember (1:N)
+  db.User.hasMany(db.TranslationGroupMember, { as: "groupMemberships", foreignKey: "userId" });
+  db.TranslationGroupMember.belongsTo(db.User, { as: "user", foreignKey: "userId" });
+
+  // Comic ↔ TranslationGroup (N:1)
+  db.TranslationGroup.hasMany(db.Comic, { as: "comics", foreignKey: "groupId" });
+  db.Comic.belongsTo(db.TranslationGroup, { as: "group", foreignKey: "groupId" });
 
 
 

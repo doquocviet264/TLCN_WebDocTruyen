@@ -62,6 +62,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'user',
     },
+    isBot: {
+      type: DataTypes.TINYINT,
+      allowNull: false,
+      defaultValue: 0,
+    },
     status: {
       type: DataTypes.ENUM('active', 'suspended', 'deleted'),
       allowNull: false,

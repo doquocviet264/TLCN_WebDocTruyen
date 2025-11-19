@@ -14,5 +14,8 @@ router.use("/ratings", require("./rating.routes"));
 router.use("/reports", require("./report.routes"));
 router.use("/user", require("./user.routes"));
 router.use("/admin", require("./admin.routes"));
-router.use("/community", require("./community.routes"))
+router.use("/community", require("./community.routes"));
+router.use("/chat", require("./chat.routes"));
+router.use("/groups", require("./group.routes"));
+
 module.exports = router;

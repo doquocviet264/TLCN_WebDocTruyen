@@ -58,8 +58,7 @@ export function ChapterReader({
   // index ảnh đang "được xem" ở chế độ cuộn
   const [visibleIndex, setVisibleIndex] = useState(0);
 
-  // số ảnh đã load (để biết khi nào được phép scroll tới trang lịch sử)
-  const [loadedCount, setLoadedCount] = useState(0);
+  // XÓA: loadedCount
 
   // flag đảm bảo chỉ auto-scroll tới lịch sử 1 lần khi đã thành công
   const hasScrolledToInitial = useRef(false);
@@ -69,7 +68,7 @@ export function ChapterReader({
     imageRefs.current = images.map(
       (_, i) => imageRefs.current[i] ?? createRef<HTMLImageElement>()
     );
-    setLoadedCount(0);
+    // XÓA: setLoadedCount(0);
     hasScrolledToInitial.current = false;
   }, [images, chapterId]);
 
@@ -95,26 +94,33 @@ export function ChapterReader({
       images.length - 1
     );
 
-    // cần ít nhất (idx + 1) ảnh load xong
-    if (loadedCount < idx + 1) return;
+    // XÓA: check loadedCount
 
-    const ref = imageRefs.current[idx];
-    const el = ref?.current;
-    if (!el) return;
+    // Dùng setTimeout(0) để đợi DOM cập nhật refs
+    const timer = setTimeout(() => {
+      const ref = imageRefs.current[idx];
+      const el = ref?.current;
+      if (!el) {
+        console.warn("[ScrollInit] Ref chưa sẵn sàng cho index", idx);
+        return;
+      }
 
-    const offset = 0; // nếu có header fixed, set số px ở đây
-    const top = el.offsetTop - offset;
+      const offset = 0; // nếu có header fixed, set số px ở đây
+      const top = el.offsetTop - offset;
 
-    console.log("[ScrollInit] scroll to index", idx, "=> top:", top);
+      console.log("[ScrollInit] Cuộn ngay tới index", idx, "=> top:", top);
 
-    window.scrollTo({ top, behavior: "auto" });
-    hasScrolledToInitial.current = true;
+      window.scrollTo({ top, behavior: "auto" });
+      hasScrolledToInitial.current = true;
+    }, 0); // Chạy ngay sau khi DOM update
+
+    return () => clearTimeout(timer);
   }, [
     readingMode,
     scrollToImageIndex,
     images.length,
     chapterId,
-    loadedCount,
+    // XÓA: loadedCount
   ]);
 
   // Xác định ảnh hiện tại cho long-strip bằng scroll + requestAnimationFrame
@@ -137,7 +143,8 @@ export function ChapterReader({
         if (!el) return;
 
         const rect = el.getBoundingClientRect();
-        const focusY = rect.top + rect.height / 3;
+        // Tính toán điểm "trọng tâm" để check, 1/3 từ trên xuống
+        const focusY = rect.top + rect.height / 3; 
         const dist = Math.abs(focusY - targetY);
 
         if (dist < bestDist) {
@@ -156,7 +163,7 @@ export function ChapterReader({
       frameId = requestAnimationFrame(computeVisible);
     };
 
-    computeVisible();
+    computeVisible(); // Chạy 1 lần lúc đầu
 
     window.addEventListener("scroll", handleScroll, {
       passive: true,
@@ -189,6 +196,7 @@ export function ChapterReader({
     const updateScroll = () => {
       const currentTime = audio.currentTime;
 
+      // Tìm cue hiện tại
       const currentCueIndex = audioCues
         .slice()
         .reverse()
@@ -204,10 +212,12 @@ export function ChapterReader({
       const nextCue =
         audioCues[audioCues.length - currentCueIndex];
       if (!nextCue) {
+        // Đã là cue cuối
         animationFrameId = requestAnimationFrame(updateScroll);
         return;
       }
 
+      // Lấy element
       const startEl =
         imageRefs.current[currentCue.imageIndex]?.current ?? null;
       const endEl =
@@ -218,6 +228,7 @@ export function ChapterReader({
         return;
       }
 
+      // Tính toán vị trí cuộn mượt (interpolation)
       const startY =
         startEl.getBoundingClientRect().top + window.scrollY;
       const endY =
@@ -238,7 +249,8 @@ export function ChapterReader({
       window.scrollTo({ top: newScrollY, behavior: "auto" });
       animationFrameId = requestAnimationFrame(updateScroll);
     };
-
+    
+    // Chặn cuộn tay khi đang ở audio mode
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
     };
@@ -261,7 +273,7 @@ export function ChapterReader({
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener("wheel", handleWheel);
-      if (!audio.paused) audio.pause();
+      if (audio && !audio.paused) audio.pause();
     };
   }, [isAudioModeOn, audioRef, readingMode, images, chapterId]);
 
@@ -276,18 +288,19 @@ export function ChapterReader({
 
     if (isAutoPlayOn) {
       if (readingMode === "long-strip") {
-        const pixelsPerTick = autoScrollSpeed / 2;
+        const pixelsPerTick = autoScrollSpeed / 2; // Điều chỉnh tốc độ
         intervalRef.current = window.setInterval(() => {
           if (
             window.innerHeight + window.scrollY >=
-            document.documentElement.scrollHeight - 10
+            document.documentElement.scrollHeight - 10 // Đệm 10px
           ) {
+            // Đã cuộn hết
             cleanup();
             setIsAutoPlayOn(false);
           } else {
             window.scrollBy(0, pixelsPerTick);
           }
-        }, 20);
+        }, 20); // 50 tick/giây
       } else if (readingMode === "paginated") {
         intervalRef.current = window.setInterval(() => {
           if (currentPage >= images.length - 1) {
@@ -333,15 +346,17 @@ export function ChapterReader({
               src={src}
               ref={imageRefs.current[index]}
               alt={`Trang ${index + 1}`}
-              className="w-full h-auto"
+              // THAY ĐỔI: Thêm min-height và bg để "giữ chỗ"
+              className="w-full h-auto min-h-[800px] bg-gray-200 dark:bg-gray-800"
               loading="lazy"
-              onLoad={() => {
-                setLoadedCount((c) => c + 1);
-              }}
+              // XÓA: onLoad
             />
           ))
         ) : (
           <div className="w-full relative">
+            {/* TODO: Thêm preload ảnh tiếp theo cho paginated 
+              <img src={images[currentPage + 1]} style={{ display: 'none' }} />
+            */}
             <img
               src={images[currentPage]}
               alt={`Trang ${currentPage + 1}`}

@@ -21,4 +21,10 @@ module.exports = {
   maxChapterNumberByComic(comicId, { model } = {}) {
     return model.Chapter.max("chapterNumber", { where: { comicId } });
   },
+  incrementViews(chapterId, { model, transaction } = {}) {
+    return model.Chapter.increment(
+      { views: 1 },
+      { where: { chapterId }, transaction, silent: true }
+    );
+  }
 };

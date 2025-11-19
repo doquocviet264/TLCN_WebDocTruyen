@@ -7,7 +7,8 @@ const navItems = [
   { href: "/following", label: "Theo dõi", icon: Heart },
   { href: "/history", label: "Lịch sử", icon: History },
   { href: "/search", label: "Tìm truyện", icon: Search },
-  { href: "/community", label: "Cộng đồng", icon: Users }
+  { href: "/community", label: "Cộng đồng", icon: Users },
+  { href: "/groups", label: "Nhóm dịch", icon: Users }
 ]
 
 export default function Navbar() {

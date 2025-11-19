@@ -1,55 +1,73 @@
 // src/config/socket.js
 const jwt = require("jsonwebtoken");
 const { Server } = require("socket.io");
+const attachChatSocket = require("../sockets/chat.socket");
 
 let ioInstance = null;
 
-/**
- * Khởi tạo Socket.IO server
- * @param {http.Server} server - HTTP server được tạo từ express (http.createServer(app))
- * @param {{ corsOrigin?: string }} options
- */
-function initSocket(server, { corsOrigin = "*" } = {}) {
+function initSocket(server) {
+  const corsOrigin = process.env.CORS_ORIGIN || "*";
+
   const io = new Server(server, {
     cors: {
       origin: corsOrigin,
       methods: ["GET", "POST"],
       credentials: true,
     },
-    transports: ["websocket", "polling"], // fallback khi WS lỗi
+    transports: ["websocket", "polling"],
   });
 
-  // ✅ Middleware xác thực JWT (nếu cần)
+  // 🔐 JWT middleware cho Socket.IO
   io.use((socket, next) => {
     try {
+      const rawAuth = socket.handshake.headers?.authorization || "";
       const token =
         socket.handshake.auth?.token ||
         socket.handshake.query?.token ||
-        socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, "");
+        (rawAuth.startsWith("Bearer ")
+          ? rawAuth.replace(/^Bearer\s+/i, "")
+          : null);
 
       if (!token) {
-        console.warn("⚠️ Không có token khi kết nối socket");
+        console.warn("⚠️ Socket connection without token");
         return next(new Error("Unauthorized"));
       }
 
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
-      socket.user = { userId: payload.userId };
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userId = decoded?.user?.userId;
+
+      if (!userId) {
+        console.error("❌ JWT payload không có user.userId:", decoded);
+        return next(new Error("Unauthorized"));
+      }
+
+      socket.user = {
+        userId,
+        // nếu muốn, bạn có thể nhét cả decoded.user vào:
+        ...decoded.user,
+      };
+
+      console.log("✅ Socket JWT OK, userId =", userId);
       next();
     } catch (err) {
-      console.error("❌ JWT invalid:", err.message);
+      console.error("❌ JWT invalid in socket:", err.message);
       next(new Error("Unauthorized"));
     }
   });
 
-  // ✅ Lắng nghe kết nối
   io.on("connection", (socket) => {
     const { userId } = socket.user || {};
     if (userId) {
-      const room = `user:${userId}`;
-      socket.join(room);
+      const userRoom = `user:${userId}`;
+      socket.join(userRoom);
       console.log(`✅ Socket connected: ${socket.id} (User ${userId})`);
+
+      // Gắn handler chat (file chat.socket.js hiện tại của bạn)
+      attachChatSocket(io, socket);
     } else {
-      console.log(`⚠️ Socket connected (no user) ${socket.id}`);
+      console.log(`⚠️ Socket connected without user: ${socket.id}`);
+      // Nếu muốn chặt hơn thì:
+      // socket.disconnect(true);
     }
 
     socket.on("disconnect", (reason) => {
@@ -61,9 +79,6 @@ function initSocket(server, { corsOrigin = "*" } = {}) {
   return io;
 }
 
-/**
- * Lấy instance io hiện tại
- */
 function getIO() {
   if (!ioInstance) {
     throw new Error("Socket.IO chưa được khởi tạo — gọi initSocket(server) trước");
@@ -71,9 +86,6 @@ function getIO() {
   return ioInstance;
 }
 
-/**
- * Gửi sự kiện tới user cụ thể
- */
 function emitToUser(userId, event, data) {
   if (!ioInstance) return;
   ioInstance.to(`user:${userId}`).emit(event, data);

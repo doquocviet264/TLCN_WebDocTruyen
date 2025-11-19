@@ -11,7 +11,7 @@ import axios from "axios"; // hoặc: import api from "@/services/client"
 
 type LoginSuccess = {
   success: true;
-  data: { token: string; role: "USER" | "ADMIN" | string };
+  data: { token: string; role: "USER" | "ADMIN" | string; userId: number };
   meta: any;
 };
 
@@ -44,10 +44,10 @@ export default function LoginPage() {
 
       // Với axios, res.data luôn có dữ liệu JSON
       if (res.data.success) {
-        const { token, role } = res.data.data;
+        const { token, role, userId } = res.data.data;
 
         // Lưu token + role qua AuthContext
-        login(token, role);
+        login(token, role, userId);
         toast.success("Đăng nhập thành công");
 
         // Điều hướng theo role (giả sử ADMIN vào /admin)

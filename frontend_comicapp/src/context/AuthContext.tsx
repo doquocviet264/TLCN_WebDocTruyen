@@ -1,15 +1,17 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect, useContext } from "react";
 
 interface AuthContextType {
   isLoggedIn: boolean;
   role: string | null;
-  login: (token: string, role: string) => void;
+  userId: number | null; 
+  login: (token: string, role: string, userId: number) => void;
   logout: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType>({
   isLoggedIn: false,
   role: null,
+  userId: null, 
   login: () => {},
   logout: () => {},
 });
@@ -28,45 +30,59 @@ function isTokenExpired(token: string): boolean {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null); 
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     const storedRole = localStorage.getItem("role");
+    const storedUserId = localStorage.getItem("userId");
 
     if (token && !isTokenExpired(token)) {
       setIsLoggedIn(true);
       setRole(storedRole);
+      if (storedUserId) {
+        setUserId(parseInt(storedUserId, 10));
+      }
     } else {
       localStorage.removeItem("token");
       localStorage.removeItem("role");
+      localStorage.removeItem("userId");
       setIsLoggedIn(false);
       setRole(null);
+      setUserId(null); 
     }
   }, []);
 
-  const login = (token: string, role: string) => {
+  const login = (token: string, role: string, userId: number) => {
     if (!isTokenExpired(token)) {
       localStorage.setItem("token", token);
       localStorage.setItem("role", role);
+      console.log(userId)
+      localStorage.setItem("userId", userId.toString()); 
       setIsLoggedIn(true);
       setRole(role);
+      setUserId(userId);
     } else {
       localStorage.removeItem("token");
       localStorage.removeItem("role");
+      localStorage.removeItem("userId");
       setIsLoggedIn(false);
       setRole(null);
+      setUserId(null); 
     }
   };
 
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
+    localStorage.removeItem("userId");
     setIsLoggedIn(false);
     setRole(null);
+    setUserId(null);
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, role, login, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, role, userId, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

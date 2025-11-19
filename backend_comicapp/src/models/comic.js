@@ -29,6 +29,10 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.ENUM('In Progress', 'On Hold', 'Completed'),
             defaultValue: 'In Progress',
         },
+        groupId: {
+            type: DataTypes.INTEGER,
+            allowNull: true,    
+        },
     }, {
         tableName: 'Comic',
         timestamps: true,

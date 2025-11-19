@@ -6,7 +6,9 @@ import Footer from "@/components/Footer/Footer";
 export default function UserLayout() {
   const location = useLocation();
   // Ẩn header/footer khi đọc chapter
-  const hideLayout = /^\/truyen-tranh\/[^/]+\/chapter\/\d+$/.test(location.pathname);
+  const hideLayout = /^\/truyen-tranh\/[^/]+\/chapter\/\d+(\.\d+)?$/.test(
+    location.pathname
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
