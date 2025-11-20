@@ -106,7 +106,6 @@ export default function ChapterPage() {
         const res = await axios.get<ApiOk<ChapterData>>(
           `${import.meta.env.VITE_API_URL}/chapters/${slug}/${chapterNumber}`
         );
-        console.log(1);
         const chapter = res.data.data;
         setChapterData(chapter);
 

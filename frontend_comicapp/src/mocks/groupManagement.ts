@@ -121,9 +121,22 @@ export const recentActivities = [
 ];
 
 export const availableAvatarUrls = [
-  "https://via.placeholder.com/150/FF0000/FFFFFF?text=G1",
-  "https://via.placeholder.com/150/00FF00/FFFFFF?text=G2",
-  "https://via.placeholder.com/150/0000FF/FFFFFF?text=G3",
-  "https://via.placeholder.com/150/FFFF00/000000?text=G4",
-  "https://via.placeholder.com/150/FF00FF/FFFFFF?text=G5",
+  // 1. Monkey D. Luffy (One Piece)
+  "https://cdn.myanimelist.net/images/characters/9/310307.jpg",
+
+  // 2. Naruto Uzumaki (Naruto)
+  "https://cdn.myanimelist.net/images/characters/9/131317.jpg",
+
+  // 4. Levi Ackerman (Attack on Titan - Ngầu)
+  "https://cdn.myanimelist.net/images/characters/2/241413.jpg",
+
+
+  // 6. Son Goku (Dragon Ball - Huyền thoại)
+  "https://cdn.myanimelist.net/images/characters/11/286916.jpg",
+
+  // 7. Saitama (One Punch Man - Vui nhộn)
+  "https://cdn.myanimelist.net/images/characters/11/294388.jpg",
+
+  // 10. Roronoa Zoro (One Piece)
+  "https://cdn.myanimelist.net/images/characters/3/100534.jpg",
 ];

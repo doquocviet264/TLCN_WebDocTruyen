@@ -40,7 +40,6 @@ module.exports = ({
         }
       );
       if (!chapter) throw new AppError("Không tìm thấy chương", 404, "CHAPTER_NOT_FOUND");
-      console.log(1);
       repos.chapterRepo.incrementViews(chapter.chapterId, { model }).catch(console.error);
       // Build allChapters + prev/next
       const formatChapterName = (ch) => {

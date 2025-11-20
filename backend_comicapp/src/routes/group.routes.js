@@ -9,8 +9,9 @@ const groupServiceFactory = require("../services/group.service");
 const groupControllerFactory = require("../controllers/group.controller");
 
 const validateRequest = require("../validators/validateRequest");
-const { protect } = require("../middlewares/auth");
-
+const { protect, isTranslator } = require("../middlewares/auth");
+const { belongsToGroup, isGroupLeader } = require("../middlewares/groupAuth");
+const upload = require("../middlewares/upload"); // Import upload middleware
 const {
   groupIdParam,
   memberUserIdParam,
@@ -18,6 +19,7 @@ const {
   updateGroupBody,
   addMemberBody,
   setLeaderBody,
+  dashboardGroupBody
 } = require("../validators/group.validators");
 
 const { param, query } = require('express-validator'); // Import param and query
@@ -307,6 +309,7 @@ router.patch(
   "/:groupId",
   protect,
   groupIdParam,
+  upload.single('avatar'), // Add multer middleware for single avatar file upload
   updateGroupBody,
   validateRequest,
   groupController.updateGroup
@@ -639,11 +642,75 @@ router.post(
 router.get(
   "/:groupId/dashboard",
   protect,
-  [
-    param("groupId").isInt({ min: 1 }),
-    query("range").optional().isString(),
-  ],
+  isTranslator,
+  belongsToGroup,
+  dashboardGroupBody,
   validateRequest,
   asyncHandler(groupController.getGroupDashboard)
 );
+
+/**
+ * @openapi
+ * /groups/{groupId}/eligible-members:
+ *   get:
+ *     tags: [Groups]
+ *     summary: Tìm kiếm thành viên đủ điều kiện để thêm vào nhóm
+ *     description: |
+ *       Tìm kiếm user có role TRANSLATOR, không phải thành viên của nhóm hiện tại,
+ *       và không phải là leader của bất kỳ nhóm nào khác.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: groupId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *           description: Từ khóa tìm kiếm (username)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Danh sách user đủ điều kiện
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/OkEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           userId: { type: integer }
+ *                           username: { type: string }
+ *                           avatarUrl: { type: string, nullable: true }
+ *                           role: { type: string }
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền (chỉ leader hoặc admin)
+ */
+router.get(
+  "/:groupId/eligible-members",
+  protect,
+  groupIdParam,
+  validateRequest,
+  groupController.searchEligibleMembers
+);
+
 module.exports = router;

@@ -24,9 +24,9 @@ export default function GroupSidebar({
 
   const navLinks = [
     { to: `/groups/${groupId}/manage`, text: "Dashboard", icon: Home },
-    { to: `/groups/${groupId}/manage/comics`, text: "Comics", icon: BookCopy },
-    { to: `/groups/${groupId}/manage/members`, text: "Members", icon: Users },
-    { to: `/groups/${groupId}/manage/chat`, text: "Chat", icon: MessageSquare },
+    { to: `/groups/${groupId}/manage/comics`, text: "Quản lý truyện", icon: BookCopy },
+    { to: `/groups/${groupId}/manage/members`, text: "Thành viên", icon: Users },
+    { to: `/groups/${groupId}/manage/chat`, text: "Nhắn tin", icon: MessageSquare },
     {
       to: `/groups/${groupId}/manage/settings`,
       text: "Settings",

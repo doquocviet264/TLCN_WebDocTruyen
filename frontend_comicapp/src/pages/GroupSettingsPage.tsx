@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { AuthContext } from "@/context/AuthContext";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  availableAvatarUrls, // vẫn dùng mock danh sách avatar gợi ý
+  availableAvatarUrls,
 } from "@/mocks/groupManagement";
 
 interface GroupDetails {
@@ -39,6 +40,7 @@ interface ApiEnvelope<T = any> {
 export default function GroupSettingsPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
+  const { isLoggedIn } = useContext(AuthContext);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,6 +48,7 @@ export default function GroupSettingsPage() {
   const [deleting, setDeleting] = useState(false);
 
   const [group, setGroup] = useState<GroupDetails | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -64,7 +67,7 @@ export default function GroupSettingsPage() {
       try {
         setLoading(true);
         const res = await axios.get<ApiEnvelope<GroupDetails>>(
-          `/api/groups/${groupId}`
+          `${import.meta.env.VITE_API_URL}/groups/${groupId}`
         );
 
         if (cancelled) return;
@@ -96,18 +99,6 @@ export default function GroupSettingsPage() {
       cancelled = true;
     };
   }, [groupId]);
-
-  // ===== helper: file -> base64 (nếu bạn muốn gửi dạng data URL) =====
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("Đọc file thất bại"));
-      reader.onload = () => {
-        resolve(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
 
   // ===== chọn avatar từ danh sách mẫu =====
   const handleAvatarSelect = (url: string) => {
@@ -144,24 +135,25 @@ export default function GroupSettingsPage() {
     try {
       setSaving(true);
 
-      let avatarPayload: string | null = null;
+      const formData = new FormData();
+      formData.append("name", name.trim());
+      formData.append("description", description.trim());
 
       if (localFile) {
-        // gửi dạng base64 (backend có thể upload Cloudinary từ đây)
-        avatarPayload = await fileToBase64(localFile);
+        formData.append("avatar", localFile);
+      } else if (selectedAvatarUrl) {
+        formData.append("avatarUrl", selectedAvatarUrl);
       } else {
-        avatarPayload = selectedAvatarUrl || null;
+        formData.append("avatarUrl", ""); // Or handle deletion of avatar
       }
 
-      const payload = {
-        name: name.trim(),
-        description: description.trim(),
-        avatarUrl: avatarPayload,
-      };
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       const res = await axios.patch<ApiEnvelope>(
-        `/api/groups/${groupId}`,
-        payload
+        `${import.meta.env.VITE_API_URL}/groups/${groupId}`,
+        formData,
+        { headers: { ...headers, "Content-Type": "multipart/form-data" } }
       );
 
       if (!res.data.success) {
@@ -169,15 +161,16 @@ export default function GroupSettingsPage() {
       }
 
       toast.success("Cập nhật thông tin nhóm thành công");
+      setIsEditing(false); // Disable edit mode on successful save
 
       // cập nhật state local để đồng bộ
       setGroup((prev) =>
         prev
           ? {
               ...prev,
-              name: payload.name,
-              description: payload.description,
-              avatarUrl: payload.avatarUrl,
+              name: name.trim(),
+              description: description.trim(),
+              avatarUrl: selectedAvatarUrl, // Assuming API returns new URL or update state
             }
           : prev
       );
@@ -190,6 +183,16 @@ export default function GroupSettingsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    if (group) {
+      setName(group.name);
+      setDescription(group.description);
+      setSelectedAvatarUrl(group.avatarUrl || availableAvatarUrls[0] || "");
+      setLocalFile(null);
+    }
+    setIsEditing(false);
   };
 
   // ===== rời nhóm (POST /api/groups/:groupId/leave) =====
@@ -205,8 +208,13 @@ export default function GroupSettingsPage() {
 
     try {
       setLeaving(true);
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
       const res = await axios.post<ApiEnvelope>(
-        `/api/groups/${groupId}/leave`
+        `${import.meta.env.VITE_API_URL}/groups/${groupId}/leave`,
+        {},
+        { headers }
       );
 
       if (!res.data.success) {
@@ -238,7 +246,13 @@ export default function GroupSettingsPage() {
 
     try {
       setDeleting(true);
-      const res = await axios.delete<ApiEnvelope>(`/api/groups/${groupId}`);
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const res = await axios.delete<ApiEnvelope>(
+        `${import.meta.env.VITE_API_URL}/groups/${groupId}`,
+        { headers }
+      );
 
       if (!res.data.success) {
         throw new Error(res.data.error?.message || "Xóa nhóm thất bại");
@@ -278,11 +292,16 @@ export default function GroupSettingsPage() {
     <div className="grid gap-6">
       {/* CARD: Thông tin nhóm */}
       <Card>
-        <CardHeader>
-          <CardTitle>Group Information</CardTitle>
-          <CardDescription>
-            Update your group&apos;s name, description, and avatar.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="flex flex-col space-y-1">
+            <CardTitle>Thông tin nhóm</CardTitle>
+            <CardDescription>
+              Cập nhật tên, mô tả và ảnh đại diện cho nhóm của bạn.
+            </CardDescription>
+          </div>
+          {!isEditing && (
+            <Button onClick={() => setIsEditing(true)}>Chỉnh sửa</Button>
+          )}
         </CardHeader>
         <CardContent>
           <form
@@ -293,68 +312,86 @@ export default function GroupSettingsPage() {
             }}
           >
             <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Tên nhóm</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Group name..."
+                placeholder="Tên nhóm..."
+                disabled={!isEditing}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">Mô tả</Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe your group..."
+                placeholder="Mô tả nhóm của bạn..."
+                disabled={!isEditing}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="avatar-upload">Avatar</Label>
-              {/* Avatars preset */}
-              <div className="flex flex-wrap gap-2">
-                {availableAvatarUrls.map((url) => (
+              <Label htmlFor="avatar">Ảnh đại diện</Label>
+              {isEditing ? (
+                <>
+                  {/* Avatars preset */}
+                  <div className="flex flex-wrap gap-2">
+                    {availableAvatarUrls.map((url) => (
+                      <img
+                        key={url}
+                        src={url}
+                        alt="Avatar option"
+                        className={`h-16 w-16 cursor-pointer rounded-md object-cover border-2 ${
+                          selectedAvatarUrl === url && !localFile
+                            ? "border-primary"
+                            : "border-transparent"
+                        }`}
+                        onClick={() => handleAvatarSelect(url)}
+                      />
+                    ))}
+                  </div>
+                  {/* Upload file */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <Input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                    />
+                    <Label
+                      htmlFor="avatar-upload"
+                      className="cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent"
+                    >
+                      Chọn tệp
+                    </Label>
+                    {localFile && (
+                      <span className="text-sm text-muted-foreground">
+                        {localFile.name}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : null}
+
+              {/* Current Avatar (always visible) */}
+              {!isEditing && selectedAvatarUrl && (
+                <div className="mt-3">
                   <img
-                    key={url}
-                    src={url}
-                    alt="Avatar option"
-                    className={`h-16 w-16 cursor-pointer rounded-md object-cover border-2 ${
-                      selectedAvatarUrl === url && !localFile
-                        ? "border-primary"
-                        : "border-transparent"
-                    }`}
-                    onClick={() => handleAvatarSelect(url)}
+                    src={selectedAvatarUrl}
+                    alt="Current Avatar"
+                    className="h-20 w-20 rounded-md object-cover border"
                   />
-                ))}
-              </div>
-              {/* Upload file */}
-              <div className="flex items-center gap-2 mt-2">
-                <Input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                />
-                <Label
-                  htmlFor="avatar-upload"
-                  className="cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Choose File
-                </Label>
-                {localFile && (
-                  <span className="text-sm text-muted-foreground">
-                    {localFile.name}
-                  </span>
-                )}
-              </div>
-              {/* Preview */}
-              {selectedAvatarUrl && (
+                </div>
+              )}
+
+              {/* Preview (visible only when editing) */}
+              {isEditing && selectedAvatarUrl && (
                 <div className="mt-3">
                   <p className="text-xs text-muted-foreground mb-1">
-                    Preview:
+                    Xem trước:
                   </p>
                   <img
                     src={selectedAvatarUrl}
@@ -366,27 +403,34 @@ export default function GroupSettingsPage() {
             </div>
           </form>
         </CardContent>
-        <CardFooter className="border-t px-6 py-4 flex justify-end">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
+        <CardFooter className="border-t px-6 py-4 flex justify-end gap-2">
+          {isEditing && (
+            <>
+              <Button variant="outline" onClick={handleCancel}>
+                Hủy
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Đang lưu..." : "Lưu thay đổi"}
+              </Button>
+            </>
+          )}
         </CardFooter>
       </Card>
 
-      {/* CARD: Danger Zone */}
+      {/* CARD: Khu vực nguy hiểm */}
       <Card className="border-destructive">
         <CardHeader>
-          <CardTitle>Danger Zone</CardTitle>
+          <CardTitle>Khu vực nguy hiểm</CardTitle>
           <CardDescription>
-            These actions are irreversible. Please be certain.
+            Các hành động này không thể hoàn tác. Hãy chắc chắn.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="flex items-center justify-between rounded-lg border border-destructive p-4">
             <div>
-              <h3 className="font-semibold">Leave Group</h3>
+              <h3 className="font-semibold">Rời khỏi nhóm</h3>
               <p className="text-sm text-muted-foreground">
-                You will lose access to all group content and features.
+                Bạn sẽ mất quyền truy cập vào tất cả nội dung và tính năng của nhóm.
               </p>
             </div>
             <Button
@@ -394,15 +438,15 @@ export default function GroupSettingsPage() {
               onClick={handleLeaveGroup}
               disabled={leaving}
             >
-              {leaving ? "Leaving..." : "Leave Group"}
+              {leaving ? "Đang rời..." : "Rời khỏi nhóm"}
             </Button>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-destructive p-4">
             <div>
-              <h3 className="font-semibold">Delete Group</h3>
+              <h3 className="font-semibold">Xóa nhóm</h3>
               <p className="text-sm text-muted-foreground">
-                This will permanently delete the group and all of its data.
+                Hành động này sẽ xóa vĩnh viễn nhóm và tất cả dữ liệu của nhóm.
               </p>
             </div>
             <Button
@@ -410,7 +454,7 @@ export default function GroupSettingsPage() {
               onClick={handleDeleteGroup}
               disabled={deleting}
             >
-              {deleting ? "Deleting..." : "Delete Group"}
+              {deleting ? "Đang xóa..." : "Xóa nhóm"}
             </Button>
           </div>
         </CardContent>

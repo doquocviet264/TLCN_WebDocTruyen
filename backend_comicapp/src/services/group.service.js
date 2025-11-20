@@ -620,5 +620,80 @@ module.exports = ({ sequelize, model, repos }) => {
         recentActivities,
       };
     },
+
+    async searchEligibleMembers({ groupId, q, page, limit }) {
+      const pageNum = Math.max(1, Number(page) || 1);
+      const limitNum = Math.min(50, Math.max(1, Number(limit) || 10));
+      const offset = (pageNum - 1) * limitNum;
+
+      // 1. Lấy tất cả member của group hiện tại
+      const currentGroupMemberships = await model.TranslationGroupMember.findAll({
+        where: { groupId },
+        attributes: ["userId"],
+        raw: true,
+      });
+
+      // 2. Lấy tất cả user đang là leader ở group khác
+      const otherGroupLeaderships = await model.TranslationGroupMember.findAll({
+        where: {
+          role: "leader",
+          groupId: { [Op.ne]: groupId },
+        },
+        attributes: ["userId"],
+        raw: true,
+      });
+
+      // 3. Gộp và loại trùng userId cần loại bỏ
+      const excludedIds = Array.from(
+        new Set([
+          ...currentGroupMemberships.map((m) => m.userId),
+          ...otherGroupLeaderships.map((m) => m.userId),
+        ])
+      );
+
+      // 4. Xây where cho User
+      /** 
+       * Lưu ý: chỗ `role: "translator"` là role trong bảng User.
+       * Nếu role translator là role trong bảng TranslationGroupMember thì chỗ này phải sửa lại logic.
+       */
+      const where = {
+        role: "translator",
+      };
+
+      if (excludedIds.length > 0) {
+        where.userId = { [Op.notIn]: excludedIds };
+      }
+
+      if (q && q.trim()) {
+        const keyword = `%${q.trim()}%`;
+        where.username = { [Op.like]: keyword };
+        // Hoặc OR nhiều field:
+        // where[Op.or] = [
+        //   { username: { [Op.like]: keyword } },
+        //   { email: { [Op.like]: keyword } },
+        // ];
+      }
+
+      // 5. Query User với phân trang
+      const { rows, count } = await model.User.findAndCountAll({
+        where,
+        attributes: ["userId", "username", "avatar", "role"],
+        order: [["username", "ASC"]],
+        limit: limitNum,
+        offset,
+      });
+
+      const totalPages = Math.ceil(count / limitNum) || 1;
+
+      return {
+        items: rows,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          totalItems: count,
+          totalPages,
+        },
+      };
+    },
   };
 };

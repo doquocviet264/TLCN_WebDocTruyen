@@ -15,6 +15,10 @@ const updateGroupBody = [
   body("description").optional().isString(),
   body("avatarUrl").optional().isString(),
 ];
+const dashboardGroupBody = [
+  param("groupId").isInt({ min: 1 }),
+  body("range").optional().isString(),
+];
 
 const addMemberBody = [
   body("userId").isInt({ min: 1 }).withMessage("userId không hợp lệ"),
@@ -32,5 +36,6 @@ module.exports = {
   createGroupBody,
   updateGroupBody,
   addMemberBody,
+  dashboardGroupBody,
   setLeaderBody,
 };

@@ -35,6 +35,8 @@ import GroupLayout from "./layouts/GroupLayout";
 import GroupManagementPage from "./pages/GroupManagementPage";
 import GroupMembersManagementPage from "./pages/GroupMembersManagementPage";
 import GroupSettingsPage from "./pages/GroupSettingsPage";
+import GroupChatPage from "./pages/Group/GroupChatPage";
+import GroupMembersPage from "./pages/GroupMembersPage";
 
 function App() {
   return (
@@ -75,8 +77,9 @@ function App() {
 
           <Route path="/groups/:groupId/manage" element={<GroupLayout />}>
             <Route path="" element={<GroupManagementPage />} />
-            <Route path="members" element={<GroupMembersManagementPage />} />
+            <Route path="members" element={<GroupMembersPage />} />
             <Route path="settings" element={<GroupSettingsPage />} />
+            <Route path="chat" element={<GroupChatPage />} />
           </Route>
           
         </Routes>

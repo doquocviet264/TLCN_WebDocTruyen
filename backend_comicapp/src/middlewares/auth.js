@@ -41,5 +41,14 @@ const optionalAuth = async (req, res, next) => {
   }
   next();
 };
+const isTranslator = (req, res, next) => {
+  if (!req.user)
+    return res.status(401).json({ message: "Chưa đăng nhập" });
 
-module.exports = { protect, optionalAuth, isAdmin };
+  if (req.user.role !== "translator" && req.user.role !== "admin")
+    return res.status(403).json({ message: "Bạn không phải là dịch giả" });
+
+  return next();
+};
+
+module.exports = { protect, optionalAuth, isAdmin, isTranslator };
