@@ -42,12 +42,10 @@ export default function LoginPage() {
         { headers: { "Content-Type": "application/json" } }
       );
 
-      // Với axios, res.data luôn có dữ liệu JSON
       if (res.data.success) {
         const { token, role, userId } = res.data.data;
 
-        // Lưu token + role qua AuthContext
-        login(token, role, userId);
+        login(token);
         toast.success("Đăng nhập thành công");
 
         // Điều hướng theo role (giả sử ADMIN vào /admin)
@@ -82,7 +80,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-montserrat font-bold mb-2">Đăng nhập</h1>
-          <p className="text-muted-foreground">Chào mừng bạn trở lại Comic App</p>
+          <p className="text-muted-foreground">Chào mừng bạn trở lại TruyệnVerse</p>
         </div>
 
         <Card className="bg-card/50 backdrop-blur-sm border-border/50">

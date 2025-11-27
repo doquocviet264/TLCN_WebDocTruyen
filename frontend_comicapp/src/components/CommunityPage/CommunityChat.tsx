@@ -65,7 +65,7 @@ function authConfig() {
 }
 
 const CommunityChat: React.FC = () => {
-  const { isLoggedIn, userId: currentUserId } = useContext(AuthContext);
+  const { isLoggedIn, user } = useContext(AuthContext);
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(
@@ -126,7 +126,7 @@ const CommunityChat: React.FC = () => {
 
   // --- Init socket 1 lần theo user ---
   useEffect(() => {
-    if (!isLoggedIn || !currentUserId) {
+    if (!isLoggedIn || !user?.userId) {
       setError("Bạn cần đăng nhập để sử dụng chat.");
       return;
     }
@@ -232,7 +232,7 @@ const CommunityChat: React.FC = () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [isLoggedIn, currentUserId, fetchMessages, selectedChannelId]);
+  }, [isLoggedIn, user?.userId, fetchMessages, selectedChannelId]);
 
   // --- Đổi kênh ---
   const joinChannel = useCallback(
@@ -259,7 +259,7 @@ const CommunityChat: React.FC = () => {
       !newMessage.trim() ||
       !socketRef.current ||
       !selectedChannelId ||
-      !currentUserId
+      !user?.userId
     ) {
       return;
     }
@@ -283,7 +283,7 @@ const CommunityChat: React.FC = () => {
   };
 
   // --- UI ---
-  if (!isLoggedIn || !currentUserId) {
+  if (!isLoggedIn || !user?.userId) {
     return (
       <div className="p-4 text-center text-red-500">
         Vui lòng đăng nhập để truy cập chat.
@@ -429,7 +429,7 @@ const CommunityChat: React.FC = () => {
             )}
 
             {messages.map((msg) => {
-              const isSelf = msg.sender?.userId === currentUserId;
+              const isSelf = msg.sender?.userId === user?.userId;
               const isBot =
                 msg.messageType === "BOT" ||
                 msg.sender?.userId === BOT_USER_ID;

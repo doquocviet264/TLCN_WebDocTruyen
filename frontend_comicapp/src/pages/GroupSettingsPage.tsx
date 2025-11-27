@@ -16,15 +16,34 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import {
-  availableAvatarUrls,
-} from "@/mocks/groupManagement";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { availableAvatarUrls } from "@/mocks/groupManagement";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  ImageIcon,
+  Loader2,
+  Settings as SettingsIcon,
+  Trash2,
+  LogOut,
+} from "lucide-react";
 
 interface GroupDetails {
   groupId: number;
   name: string;
   description: string;
   avatarUrl: string | null;
+  ownerId: number; // ⚠️ Thêm ownerId để check quyền
 }
 
 interface ApiEnvelope<T = any> {
@@ -40,7 +59,7 @@ interface ApiEnvelope<T = any> {
 export default function GroupSettingsPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
-  const { isLoggedIn } = useContext(AuthContext);
+  const { isLoggedIn, user } = useContext(AuthContext); // ⚠️ Lấy currentUserId
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,14 +99,11 @@ export default function GroupSettingsPage() {
         setGroup(g);
         setName(g.name || "");
         setDescription(g.description || "");
-        setSelectedAvatarUrl(
-          g.avatarUrl || availableAvatarUrls[0] || ""
-        );
+        setSelectedAvatarUrl(g.avatarUrl || availableAvatarUrls[0] || "");
       } catch (err: any) {
         console.error(err);
         toast.error(
-          err?.response?.data?.error?.message ||
-            "Không thể tải thông tin nhóm"
+          err?.response?.data?.error?.message || "Không thể tải thông tin nhóm"
         );
       } finally {
         if (!cancelled) setLoading(false);
@@ -103,21 +119,35 @@ export default function GroupSettingsPage() {
   // ===== chọn avatar từ danh sách mẫu =====
   const handleAvatarSelect = (url: string) => {
     setSelectedAvatarUrl(url);
-    setLocalFile(null); // clear file nếu user chọn URL có sẵn
+    setLocalFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  // ===== chọn file local để làm avatar =====
+  // ===== chọn file local để làm avatar + validate < 5MB =====
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      const file = event.target.files[0];
+    const file = event.target.files?.[0];
+
+    if (file) {
+      // ⚠️ Validate dung lượng file
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Ảnh không được quá 5MB");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        setLocalFile(null);
+        // Giữ lại avatar cũ
+        if (group) {
+          setSelectedAvatarUrl(group.avatarUrl || availableAvatarUrls[0] || "");
+        }
+        return;
+      }
+
       setLocalFile(file);
       setSelectedAvatarUrl(URL.createObjectURL(file)); // preview
     } else {
       setLocalFile(null);
-      // revert về avatar cũ hoặc avatar default
       if (group) {
         setSelectedAvatarUrl(group.avatarUrl || availableAvatarUrls[0] || "");
       }
@@ -144,7 +174,7 @@ export default function GroupSettingsPage() {
       } else if (selectedAvatarUrl) {
         formData.append("avatarUrl", selectedAvatarUrl);
       } else {
-        formData.append("avatarUrl", ""); // Or handle deletion of avatar
+        formData.append("avatarUrl", "");
       }
 
       const token = localStorage.getItem("token");
@@ -161,16 +191,15 @@ export default function GroupSettingsPage() {
       }
 
       toast.success("Cập nhật thông tin nhóm thành công");
-      setIsEditing(false); // Disable edit mode on successful save
+      setIsEditing(false);
 
-      // cập nhật state local để đồng bộ
       setGroup((prev) =>
         prev
           ? {
               ...prev,
               name: name.trim(),
               description: description.trim(),
-              avatarUrl: selectedAvatarUrl, // Assuming API returns new URL or update state
+              avatarUrl: selectedAvatarUrl,
             }
           : prev
       );
@@ -198,13 +227,6 @@ export default function GroupSettingsPage() {
   // ===== rời nhóm (POST /api/groups/:groupId/leave) =====
   const handleLeaveGroup = async () => {
     if (!groupId) return;
-    if (
-      !window.confirm(
-        "Bạn chắc chắn muốn rời nhóm? Bạn sẽ mất quyền truy cập vào nhóm này."
-      )
-    ) {
-      return;
-    }
 
     try {
       setLeaving(true);
@@ -233,16 +255,9 @@ export default function GroupSettingsPage() {
     }
   };
 
-  // ===== xóa nhóm (DELETE /api/groups/:groupId) – optional =====
+  // ===== xóa nhóm (DELETE /api/groups/:groupId) =====
   const handleDeleteGroup = async () => {
     if (!groupId) return;
-    if (
-      !window.confirm(
-        "Bạn chắc chắn muốn xóa nhóm này? Hành động này không thể hoàn tác."
-      )
-    ) {
-      return;
-    }
 
     try {
       setDeleting(true);
@@ -274,7 +289,8 @@ export default function GroupSettingsPage() {
 
   if (loading && !group) {
     return (
-      <div className="text-sm text-muted-foreground">
+      <div className="flex min-h-[200px] items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         Đang tải thông tin nhóm...
       </div>
     );
@@ -282,183 +298,349 @@ export default function GroupSettingsPage() {
 
   if (!group) {
     return (
-      <div className="text-sm text-destructive">
-        Không tìm thấy nhóm hoặc bạn không có quyền.
+      <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+        Không tìm thấy nhóm hoặc bạn không có quyền truy cập.
       </div>
     );
   }
 
+  // ⚠️ Xác định Owner để ẩn/hiện nút Rời/Xoá
+  const isOwner = group.ownerId === user?.userId;
+
   return (
-    <div className="grid gap-6">
-      {/* CARD: Thông tin nhóm */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div className="flex flex-col space-y-1">
-            <CardTitle>Thông tin nhóm</CardTitle>
-            <CardDescription>
-              Cập nhật tên, mô tả và ảnh đại diện cho nhóm của bạn.
-            </CardDescription>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      {/* Header chung */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage
+                src={
+                  group.avatarUrl ||
+                  selectedAvatarUrl ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    group.name
+                  )}&background=random`
+                }
+              />
+              <AvatarFallback>
+                {group.name?.charAt(0)?.toUpperCase() || "G"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="space-y-0.5">
+              <h1 className="flex items-center gap-2 text-lg font-semibold">
+                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
+                Cài đặt nhóm
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Quản lý thông tin hiển thị và các thao tác quan trọng của nhóm{" "}
+                <span className="font-medium text-foreground">
+                  “{group.name}”
+                </span>
+                .
+              </p>
+            </div>
           </div>
-          {!isEditing && (
-            <Button onClick={() => setIsEditing(true)}>Chỉnh sửa</Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <form
-            className="grid gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSave();
-            }}
-          >
-            <div className="grid gap-2">
-              <Label htmlFor="name">Tên nhóm</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Tên nhóm..."
-                disabled={!isEditing}
-              />
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="grid gap-6 md:grid-cols-[2fr,1.3fr]">
+        {/* CARD: Thông tin nhóm */}
+        <Card className="border border-border/70 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <div className="space-y-1">
+              <CardTitle className="text-base font-semibold">
+                Thông tin nhóm
+              </CardTitle>
+              <CardDescription>
+                Cập nhật tên, mô tả và ảnh đại diện cho nhóm dịch.
+              </CardDescription>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="description">Mô tả</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Mô tả nhóm của bạn..."
-                disabled={!isEditing}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="avatar">Ảnh đại diện</Label>
-              {isEditing ? (
-                <>
-                  {/* Avatars preset */}
-                  <div className="flex flex-wrap gap-2">
-                    {availableAvatarUrls.map((url) => (
+            {!isEditing && (
+              <Button size="sm" onClick={() => setIsEditing(true)}>
+                Chỉnh sửa
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            <form
+              className="space-y-5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSave();
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="name">Tên nhóm</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Nhập tên nhóm..."
+                  disabled={!isEditing}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Mô tả</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Mô tả mục tiêu, quy tắc, hoặc nội dung nhóm..."
+                  disabled={!isEditing}
+                  className="min-h-[100px]"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="avatar">Ảnh đại diện</Label>
+
+                {/* Preview luôn hiển thị */}
+                <div className="flex items-center gap-3">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-md border bg-muted/40">
+                    {selectedAvatarUrl || group.avatarUrl ? (
                       <img
-                        key={url}
-                        src={url}
-                        alt="Avatar option"
-                        className={`h-16 w-16 cursor-pointer rounded-md object-cover border-2 ${
-                          selectedAvatarUrl === url && !localFile
-                            ? "border-primary"
-                            : "border-transparent"
-                        }`}
-                        onClick={() => handleAvatarSelect(url)}
+                        src={
+                          selectedAvatarUrl ||
+                          group.avatarUrl ||
+                          availableAvatarUrls[0]
+                        }
+                        alt="Avatar preview"
+                        className="h-16 w-16 rounded-md object-cover"
                       />
-                    ))}
-                  </div>
-                  {/* Upload file */}
-                  <div className="flex items-center gap-2 mt-2">
-                    <Input
-                      id="avatar-upload"
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                    />
-                    <Label
-                      htmlFor="avatar-upload"
-                      className="cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent"
-                    >
-                      Chọn tệp
-                    </Label>
-                    {localFile && (
-                      <span className="text-sm text-muted-foreground">
-                        {localFile.name}
-                      </span>
+                    ) : (
+                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
                     )}
                   </div>
-                </>
-              ) : null}
-
-              {/* Current Avatar (always visible) */}
-              {!isEditing && selectedAvatarUrl && (
-                <div className="mt-3">
-                  <img
-                    src={selectedAvatarUrl}
-                    alt="Current Avatar"
-                    className="h-20 w-20 rounded-md object-cover border"
-                  />
-                </div>
-              )}
-
-              {/* Preview (visible only when editing) */}
-              {isEditing && selectedAvatarUrl && (
-                <div className="mt-3">
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Xem trước:
+                  <p className="text-xs text-muted-foreground">
+                    Đây là ảnh đại diện hiện tại của nhóm. Bạn có thể chọn ảnh
+                    mẫu hoặc tải lên ảnh mới khi bật chế độ chỉnh sửa.
                   </p>
-                  <img
-                    src={selectedAvatarUrl}
-                    alt="Avatar preview"
-                    className="h-20 w-20 rounded-md object-cover border"
-                  />
                 </div>
-              )}
-            </div>
-          </form>
-        </CardContent>
-        <CardFooter className="border-t px-6 py-4 flex justify-end gap-2">
-          {isEditing && (
-            <>
-              <Button variant="outline" onClick={handleCancel}>
-                Hủy
-              </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Đang lưu..." : "Lưu thay đổi"}
-              </Button>
-            </>
-          )}
-        </CardFooter>
-      </Card>
 
-      {/* CARD: Khu vực nguy hiểm */}
-      <Card className="border-destructive">
-        <CardHeader>
-          <CardTitle>Khu vực nguy hiểm</CardTitle>
-          <CardDescription>
-            Các hành động này không thể hoàn tác. Hãy chắc chắn.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="flex items-center justify-between rounded-lg border border-destructive p-4">
-            <div>
-              <h3 className="font-semibold">Rời khỏi nhóm</h3>
-              <p className="text-sm text-muted-foreground">
-                Bạn sẽ mất quyền truy cập vào tất cả nội dung và tính năng của nhóm.
-              </p>
-            </div>
-            <Button
-              variant="destructive"
-              onClick={handleLeaveGroup}
-              disabled={leaving}
-            >
-              {leaving ? "Đang rời..." : "Rời khỏi nhóm"}
-            </Button>
-          </div>
+                {isEditing && (
+                  <>
+                    {/* Avatars preset */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Chọn nhanh từ bộ avatar mẫu:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {availableAvatarUrls.map((url) => (
+                          <button
+                            key={url}
+                            type="button"
+                            onClick={() => handleAvatarSelect(url)}
+                            className={`relative h-14 w-14 overflow-hidden rounded-md border transition hover:shadow-sm ${
+                              selectedAvatarUrl === url && !localFile
+                                ? "border-primary ring-2 ring-primary/40"
+                                : "border-border"
+                            }`}
+                          >
+                            <img
+                              src={url}
+                              alt="Avatar option"
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-destructive p-4">
-            <div>
-              <h3 className="font-semibold">Xóa nhóm</h3>
-              <p className="text-sm text-muted-foreground">
-                Hành động này sẽ xóa vĩnh viễn nhóm và tất cả dữ liệu của nhóm.
-              </p>
-            </div>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteGroup}
-              disabled={deleting}
-            >
-              {deleting ? "Đang xóa..." : "Xóa nhóm"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+                    {/* Upload file */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Hoặc tải ảnh từ máy:
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="avatar-upload"
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          ref={fileInputRef}
+                          onChange={handleFileChange}
+                        />
+                        <Label
+                          htmlFor="avatar-upload"
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-xs font-medium shadow-sm hover:bg-accent"
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                          Chọn tệp ảnh
+                        </Label>
+                        {localFile && (
+                          <span className="truncate text-xs text-muted-foreground">
+                            {localFile.name}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Hỗ trợ các định dạng phổ biến như JPG, PNG. Ảnh không
+                        được quá 5MB.
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </form>
+          </CardContent>
+          <CardFooter className="flex justify-end gap-2 border-t bg-muted/40 px-6 py-3">
+            {isEditing && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleCancel}>
+                  Hủy
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Đang lưu...
+                    </>
+                  ) : (
+                    "Lưu thay đổi"
+                  )}
+                </Button>
+              </>
+            )}
+          </CardFooter>
+        </Card>
+
+        {/* CARD: Khu vực nguy hiểm */}
+        <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold text-destructive">
+              Khu vực nguy hiểm
+            </CardTitle>
+            <CardDescription>
+              Các hành động dưới đây có thể làm bạn mất quyền truy cập hoặc xoá
+              vĩnh viễn nhóm. Hãy chắc chắn trước khi tiếp tục.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {/* ✅ CHỈ HIỂN THỊ NÚT RỜI NHÓM NẾU KHÔNG PHẢI OWNER */}
+            {!isOwner && (
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-destructive/60 bg-background px-4 py-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <LogOut className="h-4 w-4 text-destructive" />
+                    <h3 className="text-sm font-semibold">Rời khỏi nhóm</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Bạn sẽ không còn thấy nhóm này trong danh sách. Tất cả quyền
+                    truy cập vào nhóm sẽ bị thu hồi.
+                  </p>
+                </div>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={leaving}
+                    >
+                      Rời nhóm
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Rời khỏi nhóm này?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Bạn sẽ mất quyền truy cập vào nhóm{" "}
+                        <span className="font-semibold text-foreground">
+                          “{group.name}”
+                        </span>{" "}
+                        và không thể xem nội dung nội bộ của nhóm nữa. Bạn vẫn có
+                        thể xin tham gia lại nếu nhóm cho phép.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Hủy</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={handleLeaveGroup}
+                      >
+                        {leaving ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Đang rời...
+                          </>
+                        ) : (
+                          "Xác nhận rời nhóm"
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+
+            {/* ✅ CHỈ HIỂN THỊ NÚT XÓA NHÓM NẾU LÀ OWNER */}
+            {isOwner && (
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-destructive/60 bg-background px-4 py-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <h3 className="text-sm font-semibold">Xóa nhóm</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Hành động này sẽ xoá vĩnh viễn nhóm và toàn bộ dữ liệu liên
+                    quan. Không thể hoàn tác. Chỉ người tạo ra nhóm mới có thể
+                    thực hiện thao tác này.
+                  </p>
+                </div>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={deleting}
+                    >
+                      Xóa nhóm
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Xác nhận xóa vĩnh viễn nhóm?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Nhóm{" "}
+                        <span className="font-semibold text-foreground">
+                          “{group.name}”
+                        </span>{" "}
+                        sẽ bị xóa vĩnh viễn cùng với toàn bộ dữ liệu liên quan
+                        (thành viên, cấu hình, nội dung liên quan trong phạm vi
+                        nhóm). Hành động này không thể hoàn tác.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Hủy</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={handleDeleteGroup}
+                      >
+                        {deleting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Đang xóa...
+                          </>
+                        ) : (
+                          "Xác nhận xóa nhóm"
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

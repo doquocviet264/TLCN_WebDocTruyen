@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { AuthContext } from "@/context/AuthContext";
+import JoinGroupDialog from "@/components/dialogs/JoinGroupDialog";
 import {
   ArrowLeft,
   BookOpen,
@@ -285,10 +287,12 @@ const GroupComicsSection: React.FC<{ group: GroupDetails }> = ({ group }) => {
 const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
+  const { isLoggedIn, user } = React.useContext(AuthContext);
 
   const [group, setGroup] = useState<GroupDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showJoinGroupDialog, setShowJoinGroupDialog] = useState(false);
 
   useEffect(() => {
     if (!groupId) return;
@@ -383,10 +387,30 @@ const GroupDetailPage: React.FC = () => {
 
       <GroupDetailHeader group={group} />
 
+      {isLoggedIn && user && group && !group.members.some(m => m.userId === user.userId) && (
+        <div className="text-right">
+          <Button onClick={() => setShowJoinGroupDialog(true)}>
+            Gửi yêu cầu gia nhập nhóm
+          </Button>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
         <GroupComicsSection group={group} />
         <GroupMembersSection group={group} />
       </div>
+
+      {group && (
+        <JoinGroupDialog 
+          open={showJoinGroupDialog} 
+          onOpenChange={setShowJoinGroupDialog} 
+          groupId={group.groupId.toString()}
+          onSuccess={() => {
+            // Optionally refetch group data or update UI after successful join request
+            // For now, simply close dialog and navigate
+          }}
+        />
+      )}
     </div>
   );
 };

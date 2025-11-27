@@ -95,10 +95,14 @@ module.exports = ({ sequelize, model, repos }) => {
 
         const totalMembers = (json.memberLinks || []).length;
         const totalComics = (json.comics || []).length;
-        const totalViews = (json.comics || []).reduce(
-          (sum, c) => sum + (c.views || 0),
-          0
-        );
+        const totalViews = (json.comics || []).reduce((sumComic, comic) => {
+          const chapters = comic.Chapters || comic.chapters || [];
+          const comicViews = chapters.reduce(
+            (sumCh, ch) => sumCh + (ch.views || 0),
+            0
+          );
+          return sumComic + comicViews;
+        }, 0);
 
         return {
           groupId: json.groupId,
@@ -344,53 +348,61 @@ module.exports = ({ sequelize, model, repos }) => {
       return { message: "Thêm thành viên thành công" };
     },
 
-    // DELETE /api/groups/:groupId/members/:userId
     async removeMember({ currentUserId, groupId, userId }) {
       const group = await groupRepo.findById(groupId, { model });
       if (!group) throw new AppError("Không tìm thấy nhóm", 404, "GROUP_NOT_FOUND");
 
-      const leaderMembership = await groupMemberRepo.findOne(
-        { groupId, userId: currentUserId },
-        { model }
-      );
-      if (!leaderMembership || leaderMembership.role !== "leader") {
-        throw new AppError(
-          "Chỉ leader mới được xóa thành viên",
-          403,
-          "FORBIDDEN"
-        );
+      // 1. Bảo vệ Owner: Không ai được xóa Owner
+      if (userId === group.ownerId) {
+        throw new AppError("Không thể xóa Owner.", 400, "CANNOT_REMOVE_OWNER");
       }
 
-      const targetMembership = await groupMemberRepo.findOne(
-        { groupId, userId },
-        { model }
-      );
-      if (!targetMembership) {
-        throw new AppError(
-          "User không phải thành viên của nhóm",
-          400,
-          "NOT_MEMBER"
-        );
+      // 2. Check quyền người thực hiện (Actor)
+      const actorMembership = await groupMemberRepo.findOne({ groupId, userId: currentUserId }, { model });
+      // Actor phải là Owner HOẶC là Leader
+      const isOwner = group.ownerId === currentUserId;
+      const isLeader = actorMembership && actorMembership.role === "leader";
+
+      if (!isOwner && !isLeader) {
+        throw new AppError("Bạn không có quyền xóa thành viên", 403, "FORBIDDEN");
       }
 
+      // 3. Check đối tượng bị xóa (Target)
+      const targetMembership = await groupMemberRepo.findOne({ groupId, userId }, { model });
+      if (!targetMembership) throw new AppError("User không trong nhóm", 400, "NOT_MEMBER");
+
+      // 4. LOGIC QUAN TRỌNG: Phân cấp quyền lực
       if (targetMembership.role === "leader") {
-        throw new AppError(
-          "Không thể xóa leader bằng endpoint này. Hãy chuyển leader trước.",
-          400,
-          "CANNOT_REMOVE_LEADER"
-        );
+        // Nếu target là Leader, CHỈ Owner mới được xóa
+        if (!isOwner) {
+          throw new AppError("Chỉ Owner mới được xóa Leader", 403, "FORBIDDEN");
+        }
       }
 
-      await groupMemberRepo.destroy(
-        { groupId, userId },
-        { model }
-      );
-
-      return { message: "Xóa thành viên thành công" };
+      // 5. Xóa
+      await groupMemberRepo.destroy({ groupId, userId }, { model });
+      return { message: "Đã xóa thành viên khỏi nhóm" };
     },
+
 
     // POST /api/groups/:groupId/leave
     async leaveGroup({ currentUserId, groupId }) {
+      // 1. Lấy group để biết owner là ai
+      const group = await groupRepo.findById(groupId, { model });
+      if (!group) {
+        throw new AppError("Không tìm thấy nhóm", 404, "GROUP_NOT_FOUND");
+      }
+
+      // Owner không được rời nhóm
+      if (group.ownerId === currentUserId) {
+        throw new AppError(
+          "Owner không thể rời nhóm của chính mình. Hãy chuyển quyền owner/leader hoặc xóa nhóm.",
+          400,
+          "OWNER_CANNOT_LEAVE"
+        );
+      }
+
+      // 2. Kiểm tra membership
       const membership = await groupMemberRepo.findOne(
         { groupId, userId: currentUserId },
         { model }
@@ -403,8 +415,8 @@ module.exports = ({ sequelize, model, repos }) => {
         );
       }
 
+      // 3. Nếu là leader thì chỉ được rời khi nhóm chỉ còn 1 mình
       if (membership.role === "leader") {
-        // có thể cho rời nếu nhóm chỉ còn 1 mình
         const count = await groupMemberRepo.count(
           { groupId },
           { model }
@@ -418,6 +430,7 @@ module.exports = ({ sequelize, model, repos }) => {
         }
       }
 
+      // 4. Xóa membership
       await groupMemberRepo.destroy(
         { groupId, userId: currentUserId },
         { model }
@@ -425,6 +438,7 @@ module.exports = ({ sequelize, model, repos }) => {
 
       return { message: "Rời nhóm thành công" };
     },
+
 
     // POST /api/groups/:groupId/leader
     async setLeader({ currentUserId, groupId, newLeaderId }) {

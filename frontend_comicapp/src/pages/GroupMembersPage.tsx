@@ -39,6 +39,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Search, Loader2, UserPlus } from "lucide-react";
+import { JoinRequests } from "@/components/groups/JoinRequests";
 
 interface GroupMember {
   userId: number;
@@ -76,11 +77,10 @@ interface ApiEnvelope<T = any> {
 
 export default function GroupMembersPage() {
   const { groupId } = useParams<{ groupId: string }>();
-  const { userId: currentUserId } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
 
   const [loading, setLoading] = useState(true);
   const [group, setGroup] = useState<GroupDetails | null>(null);
-  const [isLeader, setIsLeader] = useState(false);
 
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,11 +120,6 @@ export default function GroupMembersPage() {
         };
 
         setGroup(safeGroup);
-
-        const leaderStatus = safeGroup.members.some(
-          (member) => member.userId === currentUserId && member.role === "leader"
-        );
-        setIsLeader(leaderStatus);
       } catch (err: any) {
         console.error(err);
         toast.error(
@@ -139,11 +134,24 @@ export default function GroupMembersPage() {
     return () => {
       cancelled = true;
     };
-  }, [groupId, currentUserId]);
+  }, [groupId, user?.userId]);
 
-  // ===== Search Eligible Users (UI + logic mới) =====
+  // ===== Search Eligible Users (UI + logic mới, dùng canManage) =====
   useEffect(() => {
-    if (!isAddMemberDialogOpen || !isLeader || !groupId) {
+    if (!isAddMemberDialogOpen || !groupId || !group) {
+      setEligibleUsers([]);
+      setSelectedUserToAdd(null);
+      return;
+    }
+
+    const members = Array.isArray(group.members) ? group.members : [];
+    const isOwner = group.ownerId === user?.userId;
+    const isLeaderRole = members.some(
+      (m) => m.userId === user?.userId && m.role === "leader"
+    );
+    const canManage = isOwner || isLeaderRole;
+
+    if (!canManage) {
       setEligibleUsers([]);
       setSelectedUserToAdd(null);
       return;
@@ -162,7 +170,6 @@ export default function GroupMembersPage() {
         const token = localStorage.getItem("token");
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-        // BE trả data là mảng EligibleUser[]
         const res = await axios.get<ApiEnvelope<EligibleUser[]>>(
           `${import.meta.env.VITE_API_URL}/groups/${groupId}/eligible-members?q=${encodeURIComponent(
             q
@@ -190,7 +197,13 @@ export default function GroupMembersPage() {
     }, 400);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, isAddMemberDialogOpen, isLeader, groupId]);
+  }, [
+    searchQuery,
+    isAddMemberDialogOpen,
+    groupId,
+    group,
+    user?.userId,
+  ]);
 
   // ===== Add Member Handler =====
   const handleAddMember = async () => {
@@ -241,11 +254,39 @@ export default function GroupMembersPage() {
     }
   };
 
-  // ===== Kick Member Handler =====
+  // ===== Kick Member Handler (Owner hoặc Leader, nhưng Leader không kick Leader/Owner) =====
   const handleKickMember = async (memberId: number) => {
-    if (!groupId || !isLeader || memberId === currentUserId) {
-      toast.error("Không thể tự kick mình hoặc không có quyền.");
+    if (!groupId || !group) return;
+
+    const members = Array.isArray(group.members) ? group.members : [];
+    const isOwner = group.ownerId === user?.userId;
+    const isLeaderRole = members.some(
+      (m) => m.userId === user?.userId && m.role === "leader"
+    );
+    const canManage = isOwner || isLeaderRole;
+
+    if (!canManage) {
+      toast.error("Bạn không có quyền quản lý thành viên.");
       return;
+    }
+
+    if (memberId === user?.userId) {
+      toast.error("Không thể kick chính mình.");
+      return;
+    }
+
+    const targetMember = members.find((m) => m.userId === memberId);
+    if (!targetMember) {
+      toast.error("Không tìm thấy thành viên này.");
+      return;
+    }
+
+    // Leader không được kick Leader khác hoặc Owner
+    if (!isOwner) {
+      if (targetMember.userId === group.ownerId) {
+        toast.error("Nhóm trưởng không thể đá chủ nhóm.");
+        return;
+      }
     }
 
     try {
@@ -258,10 +299,10 @@ export default function GroupMembersPage() {
       );
 
       if (!res.data.success) {
-        throw new Error(res.data.error?.message || "Kick thành viên thất bại");
+        throw new Error(res.data.error?.message || "Đá thành viên thất bại");
       }
 
-      toast.success("Đã kick thành viên khỏi nhóm.");
+      toast.success("Đã đá thành viên khỏi nhóm.");
 
       setGroup((prevGroup) => {
         if (!prevGroup) return null;
@@ -276,11 +317,77 @@ export default function GroupMembersPage() {
     } catch (err: any) {
       console.error(err);
       toast.error(
-        err?.response?.data?.error?.message || "Lỗi khi kick thành viên"
+        err?.response?.data?.error?.message || "Lỗi khi đá thành viên"
       );
     }
   };
 
+  // ===== Set Leader Handler=====
+  const handleSetLeader = async (
+    newLeaderId: number,
+    currentLeaderId: number
+  ) => {
+    if (!groupId || !group) return;
+
+    const members = Array.isArray(group.members) ? group.members : [];
+
+    if (newLeaderId === currentLeaderId) {
+      toast.error("Không thể chuyển nhóm trưởng cho chính người đó.");
+      return;
+    }
+
+    const target = members.find((m) => m.userId === newLeaderId);
+    if (!target) {
+      toast.error("Không tìm thấy thành viên này.");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const res = await axios.post<ApiEnvelope>(
+        `${import.meta.env.VITE_API_URL}/groups/${groupId}/leader`,
+        { newLeaderId },
+        { headers }
+      );
+
+      if (!res.data.success) {
+        throw new Error(
+          res.data.error?.message || "Chuyển quyền nhóm trưởng thất bại"
+        );
+      }
+
+      toast.success("Đã chuyển quyền nhóm trưởng thành công!");
+
+      setGroup((prevGroup) => {
+        if (!prevGroup) return null;
+        const safeMembers = Array.isArray(prevGroup.members)
+          ? prevGroup.members
+          : [];
+
+        const updatedMembers = safeMembers.map((member) => {
+          if (member.userId === newLeaderId) {
+            return { ...member, role: "leader" };
+          }
+          if (member.userId === currentLeaderId) {
+            return { ...member, role: "member" };
+          }
+          return member;
+        });
+
+        return {
+          ...prevGroup,
+          members: updatedMembers,
+        };
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(
+        err?.response?.data?.error?.message || "Lỗi khi chuyển quyền leader"
+      );
+    }
+  };
 
   if (loading || !group) {
     return (
@@ -291,12 +398,19 @@ export default function GroupMembersPage() {
   }
 
   const members = Array.isArray(group.members) ? group.members : [];
+  const isOwner = group.ownerId === user?.userId;
+  const isLeaderRole = members.some(
+    (m) => m.userId === user?.userId && m.role === "leader"
+  );
+  const canManage = isOwner || isLeaderRole;
+
   const leaderMembers = members.filter((m) => m.role === "leader");
   const normalMembers = members.filter((m) => m.role !== "leader");
   const totalMembers = members.length;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      {canManage && groupId && <JoinRequests groupId={groupId} />}
       <Card className="border border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -331,9 +445,14 @@ export default function GroupMembersPage() {
           </div>
 
           <div className="flex flex-col items-end gap-2">
-            {isLeader ? (
+            {/* ✅ Hiển thị role hiện tại */}
+            {isOwner ? (
+              <Badge className="text-xs bg-purple-600 text-white">
+                Bạn là <span className="ml-1 font-semibold">Chủ nhóm dịch</span>
+              </Badge>
+            ) : isLeaderRole ? (
               <Badge variant="outline" className="text-xs">
-                Bạn là <span className="ml-1 font-semibold">Leader</span>
+                Bạn là <span className="ml-1 font-semibold">Trưởng nhóm</span>
               </Badge>
             ) : (
               <Badge variant="outline" className="text-xs">
@@ -341,7 +460,8 @@ export default function GroupMembersPage() {
               </Badge>
             )}
 
-            {isLeader && (
+            {/* ✅ Owner hoặc Leader mới thấy nút Thêm thành viên */}
+            {canManage && (
               <Dialog
                 open={isAddMemberDialogOpen}
                 onOpenChange={setIsAddMemberDialogOpen}
@@ -356,7 +476,7 @@ export default function GroupMembersPage() {
                   <DialogHeader>
                     <DialogTitle>Thêm thành viên mới</DialogTitle>
                     <DialogDescription>
-                      Tìm kiếm và chọn một user có role dịch giả để thêm vào nhóm.
+                      Tìm kiếm và chọn một người dùng có quyền dịch giả để thêm vào nhóm.
                     </DialogDescription>
                   </DialogHeader>
 
@@ -560,6 +680,7 @@ export default function GroupMembersPage() {
                             </div>
                           </div>
                         </div>
+
                       </div>
                     ))}
                   </div>
@@ -610,40 +731,84 @@ export default function GroupMembersPage() {
                             </span>
                           </div>
                         </div>
-                        {isLeader && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm">
-                              Kick
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Kick thành viên khỏi nhóm?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Bạn sắp xoá thành viên{" "}
-                                <span className="font-semibold text-foreground">
-                                  {member.username}
-                                </span>{" "}
-                                khỏi nhóm dịch. Thao tác này không thể hoàn tác. Bạn có chắc chắn
-                                muốn tiếp tục?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Huỷ</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                onClick={() => handleKickMember(member.userId)}
-                              >
-                                Xác nhận kick
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
 
+                        {/* Nút hành động cho Member thường */}
+                        <div className="flex gap-2">
+                          {/*owner và leader được chuyển Leader */}
+                          {canManage && member.userId !== user?.userId && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  Cấp quyền nhóm trưởng
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Chuyển quyền nhóm trưởng cho {member.username}?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Bạn sắp chuyển quyền nhóm trưởng của nhóm dịch này cho{" "}
+                                    <span className="font-semibold text-foreground">
+                                      {member.username}
+                                    </span>
+                                    . Bạn sẽ giữ vai trò Chủ sở hữu và có thể tiếp tục
+                                    quản lý nhóm. Thao tác này ảnh hưởng tới một số quyền hạn hiện tại, hãy xác nhận trước khi tiếp tục.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Huỷ</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() =>
+                                      leaderMembers[0] &&
+                                      handleSetLeader(
+                                        member.userId,
+                                        leaderMembers[0].userId
+                                      )
+                                    }
+                                  >
+                                    Xác nhận chuyển
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+
+                          {/* ✅ Kick: Owner kick được tất, Leader chỉ kick member thường */}
+                          {canManage && member.userId !== user?.userId && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm">
+                                  Kick
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Kick thành viên khỏi nhóm?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Bạn sắp xoá thành viên{" "}
+                                    <span className="font-semibold text-foreground">
+                                      {member.username}
+                                    </span>{" "}
+                                    khỏi nhóm dịch. Thao tác này không thể hoàn tác.
+                                    Bạn có chắc chắn muốn tiếp tục?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Huỷ</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => handleKickMember(member.userId)}
+                                  >
+                                    Xác nhận kick
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

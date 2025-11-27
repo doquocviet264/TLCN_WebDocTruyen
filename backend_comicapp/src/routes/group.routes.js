@@ -308,6 +308,9 @@ router.get(
 router.patch(
   "/:groupId",
   protect,
+  isTranslator,
+  belongsToGroup,
+  isGroupLeader,
   groupIdParam,
   upload.single('avatar'), // Add multer middleware for single avatar file upload
   updateGroupBody,
@@ -362,6 +365,9 @@ router.patch(
 router.delete(
   "/:groupId",
   protect,
+  isTranslator,
+  belongsToGroup,
+  isGroupLeader,
   groupIdParam,
   validateRequest,
   groupController.deleteGroup
@@ -426,6 +432,8 @@ router.delete(
 router.post(
   "/:groupId/members",
   protect,
+  belongsToGroup,
+  isGroupLeader,
   groupIdParam,
   addMemberBody,
   validateRequest,
@@ -490,6 +498,9 @@ router.post(
 router.delete(
   "/:groupId/members/:userId",
   protect,
+  isTranslator,
+  belongsToGroup,
+  isGroupLeader,
   groupIdParam.concat(memberUserIdParam),
   validateRequest,
   groupController.removeMember

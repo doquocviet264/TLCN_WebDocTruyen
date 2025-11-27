@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
       );
 
       if (res.data.success) {
-        toast.success(`Tự động quay lại trang đăng nhập sau 5 giây...`);
+        toast.success(`Vui lòng kiểm tra email của bạn để nhận liên kết đặt lại mật khẩu. Tự động chuyển hướng về trang đăng nhập sau 5 giây.`);
 
         //Tự động chuyển hướng sau 5 giây
         setTimeout(() => {

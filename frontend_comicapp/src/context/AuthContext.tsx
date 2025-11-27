@@ -1,17 +1,20 @@
 import { createContext, useState, useEffect, useContext } from "react";
 
+interface User {
+  userId: number;
+  role: string;
+}
+
 interface AuthContextType {
   isLoggedIn: boolean;
-  role: string | null;
-  userId: number | null; 
-  login: (token: string, role: string, userId: number) => void;
+  user: User | null;
+  login: (token: string) => void;
   logout: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType>({
   isLoggedIn: false,
-  role: null,
-  userId: null, 
+  user: null,
   login: () => {},
   logout: () => {},
 });
@@ -29,60 +32,47 @@ function isTokenExpired(token: string): boolean {
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
-  const [userId, setUserId] = useState<number | null>(null); 
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const storedRole = localStorage.getItem("role");
-    const storedUserId = localStorage.getItem("userId");
+    const storedUser = localStorage.getItem("user");
 
-    if (token && !isTokenExpired(token)) {
+    if (token && storedUser && !isTokenExpired(token)) {
       setIsLoggedIn(true);
-      setRole(storedRole);
-      if (storedUserId) {
-        setUserId(parseInt(storedUserId, 10));
-      }
+      setUser(JSON.parse(storedUser));
     } else {
       localStorage.removeItem("token");
-      localStorage.removeItem("role");
-      localStorage.removeItem("userId");
+      localStorage.removeItem("user");
       setIsLoggedIn(false);
-      setRole(null);
-      setUserId(null); 
+      setUser(null);
     }
   }, []);
 
-  const login = (token: string, role: string, userId: number) => {
+  const login = (token: string) => {
     if (!isTokenExpired(token)) {
+      const payload = JSON.parse(atob(token.split(".")[1]));
       localStorage.setItem("token", token);
-      localStorage.setItem("role", role);
-      console.log(userId)
-      localStorage.setItem("userId", userId.toString()); 
+      localStorage.setItem("user", JSON.stringify(payload.user));
       setIsLoggedIn(true);
-      setRole(role);
-      setUserId(userId);
+      setUser(payload.user);
     } else {
       localStorage.removeItem("token");
-      localStorage.removeItem("role");
-      localStorage.removeItem("userId");
+      localStorage.removeItem("user");
       setIsLoggedIn(false);
-      setRole(null);
-      setUserId(null); 
+      setUser(null);
     }
   };
 
   const logout = () => {
     localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    localStorage.removeItem("userId");
+    localStorage.removeItem("user");
     setIsLoggedIn(false);
-    setRole(null);
-    setUserId(null);
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, role, userId, login, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

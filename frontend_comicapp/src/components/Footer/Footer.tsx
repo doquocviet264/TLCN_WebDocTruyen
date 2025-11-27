@@ -1,3 +1,4 @@
+import iconWeb from "@/assets/images/icon_web.png";
 import { Facebook, Twitter, Instagram, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -9,10 +10,8 @@ export default function Footer() {
           {/* Logo and Description */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">C</span>
-              </div>
-              <span className="font-montserrat font-black text-xl">Comic App</span>
+              <img src={iconWeb} alt="TruyệnVerse Logo" className="h-8 w-8" />
+              <span className="font-montserrat font-black text-xl">TruyệnVerse</span>
             </div>
             <p className="text-muted-foreground text-sm">
               Nền tảng đọc truyện tranh hiện đại với trải nghiệm tuyệt vời.
@@ -78,7 +77,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-          <p>&copy; 2025 Comic App. Tất cả quyền được bảo lưu.</p>
+          <p>&copy; 2025 TruyệnVerse. Tất cả quyền được bảo lưu.</p>
         </div>
       </div>
     </footer>

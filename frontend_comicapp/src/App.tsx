@@ -30,10 +30,11 @@ import Reports from "./pages/admin/ManageReport";
 import Comments from "./pages/admin/ManageComment";
 import Genres from "./pages/admin/ManageGenre";
 import Notifications from "./pages/admin/ManageNotification"; 
+import Application from "./pages/admin/ApplicationManagementPage"; 
+
 
 import GroupLayout from "./layouts/GroupLayout";
 import GroupManagementPage from "./pages/GroupManagementPage";
-import GroupMembersManagementPage from "./pages/GroupMembersManagementPage";
 import GroupSettingsPage from "./pages/GroupSettingsPage";
 import GroupChatPage from "./pages/Group/GroupChatPage";
 import GroupMembersPage from "./pages/GroupMembersPage";
@@ -71,7 +72,7 @@ function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="comments" element={<Comments />} />
             <Route path="notifications" element={<Notifications />} />
-
+            <Route path="applications" element={<Application />} />
             <Route path="genres" element={<Genres />} />
           </Route>
 

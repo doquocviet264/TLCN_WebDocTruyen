@@ -20,6 +20,7 @@ module.exports = (sequelize, DataTypes) => {
   db.Quest           = require("./quest")(sequelize, DataTypes);
   db.Notification    = require("./notification")(sequelize, DataTypes);
   db.Report          = require("./report")(sequelize, DataTypes);
+  db.Application     = require("./application")(sequelize, DataTypes);
 
   db.ChatChannel = require("./chatChannel")(sequelize, DataTypes); 
   db.ChatMessage = require("./chatMessage")(sequelize, DataTypes); 
@@ -401,7 +402,11 @@ db.PostComment = sequelize.define(
   db.TranslationGroup.hasMany(db.Comic, { as: "comics", foreignKey: "groupId" });
   db.Comic.belongsTo(db.TranslationGroup, { as: "group", foreignKey: "groupId" });
 
-
+  // Application associations
+  db.Application.belongsTo(db.User, { foreignKey: "userId", as: "applicant" });
+  db.Application.belongsTo(db.User, { foreignKey: "reviewedBy", as: "reviewer" });
+  // Add an association to TranslationGroup for join_group applications
+  db.Application.belongsTo(db.TranslationGroup, { foreignKey: "targetId", as: "targetGroup" });
 
   return db;
 };

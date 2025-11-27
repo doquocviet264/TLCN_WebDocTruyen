@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { User, Mail, Calendar, Camera, Lock, Edit3, Gift, BookOpen, Heart, MessageCircle } from "lucide-react"
-import { useState, useEffect } from "react"
+import { User, Mail, Calendar, Camera, Lock, Edit3, Gift, BookOpen, Heart, MessageCircle, FileText } from "lucide-react"
+import { useState } from "react"
 import { EditProfileDialog } from "./EditProfileDialog"
 import { ChangePasswordDialog } from "./ChangePasswordDialog"
 import { ChangeAvatarDialog } from "./ChangeAvatarDialog"
+import { MyApplicationsDialog } from "./MyApplicationsDialog"
 import { toast } from "react-toastify"
 
 interface UserProfile {
@@ -33,6 +34,7 @@ export function ProfileInfoTab({ user, onUserChange }: ProfileInfoTabProps){
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false)
+  const [isMyApplicationsDialogOpen, setIsMyApplicationsDialogOpen] = useState(false)
 
   // Format ngày tháng
   const formatDate = (dateString: string) => {
@@ -120,6 +122,14 @@ export function ProfileInfoTab({ user, onUserChange }: ProfileInfoTabProps){
             > 
               <Lock className="h-4 w-4" /> Đổi mật khẩu 
             </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="gap-2 bg-transparent"
+              onClick={() => setIsMyApplicationsDialogOpen(true)}
+            > 
+              <FileText className="h-4 w-4" /> Xem đơn đã gửi
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -166,6 +176,11 @@ export function ProfileInfoTab({ user, onUserChange }: ProfileInfoTabProps){
         open={isAvatarDialogOpen}
         onOpenChange={setIsAvatarDialogOpen}
         onUpdate={handleUpdateUser}
+      />
+
+      <MyApplicationsDialog
+        open={isMyApplicationsDialogOpen}
+        onOpenChange={setIsMyApplicationsDialogOpen}
       />
     </div>
   )

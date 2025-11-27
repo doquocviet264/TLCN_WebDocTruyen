@@ -23,6 +23,7 @@ interface AdminSidebarProps {
 const sidebarItems = [
   { title: "Thống kê", href: "/admin", icon: BarChart3 },
   { title: "Quản lý Truyện", href: "/admin/comics", icon: BookOpen },
+  { title: "Đơn dịch giả", href: "/admin/applications", icon: FileText },
   { title: "Bình luận", href: "/admin/comments", icon: MessageSquare },
   { title: "Báo cáo", href: "/admin/reports", icon: Flag },
   { title: "Người dùng", href: "/admin/users", icon: Users },

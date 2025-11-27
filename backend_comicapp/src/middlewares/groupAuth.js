@@ -9,13 +9,10 @@ const belongsToGroup = async (req, res, next) => {
     const group = await models.TranslationGroup.findByPk(groupId);
     if (!group) return res.status(404).json({ message: "Không tìm thấy nhóm" });
 
-    if (group.ownerId === userId) return next();
-
     // 2. check member
     const link = await models.TranslationGroupMember.findOne({
       where: { groupId, userId },
     });
-
     if (!link)
       return res.status(403).json({ message: "Bạn không phải thành viên của nhóm này" });
 
@@ -29,7 +26,6 @@ const belongsToGroup = async (req, res, next) => {
 };
 const isGroupLeader = (req, res, next) => {
   if (req.groupRole === "leader") return next();
-
   // nếu owner thì vẫn pass
   if (req.user.userId === req.group?.ownerId) return next();
 

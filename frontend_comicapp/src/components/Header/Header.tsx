@@ -1,6 +1,7 @@
 import { useState, useContext, useRef, useEffect, FormEvent } from "react";
 import { type Socket } from "socket.io-client";
 import { io } from "socket.io-client";
+import iconWeb from "@/assets/images/icon_web.png";
 import { Search, Sun, Moon, User, LogIn, UserPlus, Menu, X, Bell } from "lucide-react";
 import Navbar from './Navbar';
 import { Button } from "@/components/ui/button"; 
@@ -11,6 +12,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "@/context/AuthContext";
 import SearchResults from "./SearchResults";
 import { toast } from "react-toastify";
+import BecomeTranslatorDialog from "../dialogs/BecomeTranslatorDialog";
 
 interface Notification {
   notificationId: number;
@@ -40,7 +42,8 @@ interface SearchData {
 }
 
 export default function Header() {
-  const { isLoggedIn, logout } = useContext(AuthContext);
+  const { isLoggedIn, logout, user } = useContext(AuthContext);
+  const [showBecomeTranslatorDialog, setShowBecomeTranslatorDialog] = useState(false);
 
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
@@ -280,10 +283,8 @@ export default function Header() {
       <div className="container flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-lg">C</span>
-          </div>
-          <span className="font-montserrat font-black text-xl text-foreground hidden sm:block">Comic App</span>
+          <img src={iconWeb} alt="TruyệnVerse Logo" className="h-8 w-8" />
+          <span className="font-montserrat font-black text-xl text-foreground hidden sm:block">TruyệnVerse</span>
         </Link>
 
         {/* Search Desktop */}
@@ -405,6 +406,11 @@ export default function Header() {
                 <DropdownMenuItem asChild>
                   <Link to="/profile">Tài khoản</Link>
                 </DropdownMenuItem>
+                {isLoggedIn && user?.role === 'user' && (
+                  <DropdownMenuItem onClick={() => setShowBecomeTranslatorDialog(true)}>
+                    Trở thành dịch giả
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={logout}>Đăng xuất</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -495,6 +501,10 @@ export default function Header() {
         </div>
       )}
       <Navbar />
+      <BecomeTranslatorDialog 
+        open={showBecomeTranslatorDialog} 
+        onOpenChange={setShowBecomeTranslatorDialog} 
+      />
     </header>
   );
 }
