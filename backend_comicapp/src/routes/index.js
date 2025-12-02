@@ -18,5 +18,6 @@ router.use("/community", require("./community.routes"));
 router.use("/chat", require("./chat.routes"));
 router.use("/groups", require("./group.routes"));
 router.use("/applications", require("./application.routes"));
-
+router.use("/translator", require("./translator.routes"));
+router.use("/reviews", require("./review.routes"));
 module.exports = router;

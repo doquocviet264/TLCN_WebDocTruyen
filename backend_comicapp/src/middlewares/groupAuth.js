@@ -4,7 +4,6 @@ const belongsToGroup = async (req, res, next) => {
   try {
     const userId = req.user.userId;
     const groupId = Number(req.params.groupId);
-
     // 1. check owner
     const group = await models.TranslationGroup.findByPk(groupId);
     if (!group) return res.status(404).json({ message: "Không tìm thấy nhóm" });
@@ -31,4 +30,39 @@ const isGroupLeader = (req, res, next) => {
 
   return res.status(403).json({ message: "Bạn không phải leader của nhóm" });
 };
-module.exports = { belongsToGroup, isGroupLeader };
+
+const setGroupIdFromComic = async (req, res, next) => {
+  try {
+    const comicId = Number(req.params.comicId);
+    const comic = await models.Comic.findByPk(comicId);
+    if (!comic) {
+      return res.status(404).json({ message: "Không tìm thấy truyện" });
+    }
+    req.params.groupId = comic.groupId;
+    next();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const setGroupIdFromChapter = async (req, res, next) => {
+  try {
+    const chapterId = Number(req.params.chapterId);
+    const chapter = await models.Chapter.findByPk(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ message: "Không tìm thấy chương" });
+    }
+    const comic = await models.Comic.findByPk(chapter.comicId);
+    if (!comic) {
+      return res.status(404).json({ message: "Không tìm thấy truyện" });
+    }
+    req.params.groupId = comic.groupId;
+    next();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+module.exports = { belongsToGroup, isGroupLeader, setGroupIdFromComic, setGroupIdFromChapter };

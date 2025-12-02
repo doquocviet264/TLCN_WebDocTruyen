@@ -24,12 +24,12 @@ module.exports = (sequelize, DataTypes) => {
 
   db.ChatChannel = require("./chatChannel")(sequelize, DataTypes); 
   db.ChatMessage = require("./chatMessage")(sequelize, DataTypes); 
-  db.ChatMute = require("./chatMute")(sequelize, DataTypes);
-  db.ChatStrike = require("./chatStrike")(sequelize, DataTypes);
   db.ChatUserChannelState = require("./chatUserChannelState")(sequelize, DataTypes);
 
   db.TranslationGroup = require("./translationGroup")(sequelize, DataTypes);
   db.TranslationGroupMember = require("./translationGroupMember")(sequelize, DataTypes);
+  db.ReviewDraft = require("./reviewDraft")(sequelize, DataTypes);
+  db.ReviewPublished = require("./reviewPublished")(sequelize, DataTypes);
   // Existing join tables and custom models
   db.ComicFollow = sequelize.define(
     "ComicFollows",
@@ -177,7 +177,6 @@ db.PostComment = sequelize.define(
     updatedAt: false,
   }
 );
-  // ===================== Associations =====================
 
   // Comic <-> Genre (M:N)
   db.Comic.belongsToMany(db.Genre, { through: "GenreComic",timestamps: false, foreignKey: "comicId" });
@@ -335,53 +334,45 @@ db.PostComment = sequelize.define(
   // ===================== Chat Associations =====================
 
   // ChatChannel <-> ChatMessage (1:N)
-  db.ChatChannel.hasMany(db.ChatMessage, { foreignKey: 'channelId', as: 'messages' });
-  db.ChatMessage.belongsTo(db.ChatChannel, { foreignKey: 'channelId', as: 'channel' });
+  db.ChatChannel.hasMany(db.ChatMessage, {
+    foreignKey: "channelId",
+    as: "messages",
+  });
+  db.ChatMessage.belongsTo(db.ChatChannel, {
+    foreignKey: "channelId",
+    as: "channel",
+  });
 
   // User <-> ChatMessage (1:N)
-  db.User.hasMany(db.ChatMessage, { foreignKey: 'userId', as: 'messages' });
-  db.ChatMessage.belongsTo(db.User, { foreignKey: 'userId', as: 'sender' });
-
-  // User <-> ChatMessage (for deletedBy) (1:N)
-  db.User.hasMany(db.ChatMessage, { foreignKey: 'deletedBy', as: 'deletedMessages' });
-  db.ChatMessage.belongsTo(db.User, { foreignKey: 'deletedBy', as: 'deleter' });
+  db.User.hasMany(db.ChatMessage, {
+    foreignKey: "userId",
+    as: "messages",
+  });
+  db.ChatMessage.belongsTo(db.User, {
+    foreignKey: "userId",
+    as: "sender",
+  });
 
   // User <-> ChatUserChannelState (1:N)
-  db.User.hasMany(db.ChatUserChannelState, { foreignKey: 'userId', as: 'channelStates' });
-  db.ChatUserChannelState.belongsTo(db.User, { foreignKey: 'userId', as: 'user' });
+  db.User.hasMany(db.ChatUserChannelState, {
+    foreignKey: "userId",
+    as: "channelStates",
+  });
+  db.ChatUserChannelState.belongsTo(db.User, {
+    foreignKey: "userId",
+    as: "user",
+  });
 
   // ChatChannel <-> ChatUserChannelState (1:N)
-  db.ChatChannel.hasMany(db.ChatUserChannelState, { foreignKey: 'channelId', as: 'userStates' });
-  db.ChatUserChannelState.belongsTo(db.ChatChannel, { foreignKey: 'channelId', as: 'channel' });
+  db.ChatChannel.hasMany(db.ChatUserChannelState, {
+    foreignKey: "channelId",
+    as: "userStates",
+  });
+  db.ChatUserChannelState.belongsTo(db.ChatChannel, {
+    foreignKey: "channelId",
+    as: "channel",
+  });
 
-  // User <-> ChatMute (1:N)
-  db.User.hasMany(db.ChatMute, { foreignKey: 'userId', as: 'mutes' });
-  db.ChatMute.belongsTo(db.User, { foreignKey: 'userId', as: 'user' });
-
-  // ChatChannel <-> ChatMute (1:N)
-  db.ChatChannel.hasMany(db.ChatMute, { foreignKey: 'channelId', as: 'mutes' });
-  db.ChatMute.belongsTo(db.ChatChannel, { foreignKey: 'channelId', as: 'channel' });
-
-  // User <-> ChatMute (for createdBy) (1:N)
-  db.User.hasMany(db.ChatMute, { foreignKey: 'createdBy', as: 'mutedBy' });
-  db.ChatMute.belongsTo(db.User, { foreignKey: 'createdBy', as: 'muter' });
-
-  // User <-> ChatStrike (1:N)
-  db.User.hasMany(db.ChatStrike, { foreignKey: 'userId', as: 'strikes' });
-  db.ChatStrike.belongsTo(db.User, { foreignKey: 'userId', as: 'user' });
-
-  // ChatChannel <-> ChatStrike (1:N)
-  db.ChatChannel.hasMany(db.ChatStrike, { foreignKey: 'channelId', as: 'strikes' });
-  db.ChatStrike.belongsTo(db.ChatChannel, { foreignKey: 'channelId', as: 'channel' });
-
-  // ChatMessage <-> ChatStrike (1:N)
-  db.ChatMessage.hasMany(db.ChatStrike, { foreignKey: 'messageId', as: 'strike' });
-  db.ChatStrike.belongsTo(db.ChatMessage, { foreignKey: 'messageId', as: 'message' });
-
-  // User <-> ChatStrike (for createdBy) (1:N)
-  db.User.hasMany(db.ChatStrike, { foreignKey: 'createdBy', as: 'strikeCreatedBy' });
-  db.ChatStrike.belongsTo(db.User, { foreignKey: 'createdBy', as: 'striker' });
-  
   // User ↔ TranslationGroup (owner 1:N)
   db.User.hasMany(db.TranslationGroup, { as: "ownedGroups", foreignKey: "ownerId" });
   db.TranslationGroup.belongsTo(db.User, { as: "owner", foreignKey: "ownerId" });
@@ -393,7 +384,16 @@ db.PostComment = sequelize.define(
   // TranslationGroup ↔ TranslationGroupMember (1:N)
   db.TranslationGroup.hasMany(db.TranslationGroupMember, { as: "memberLinks", foreignKey: "groupId" });
   db.TranslationGroupMember.belongsTo(db.TranslationGroup, { as: "group", foreignKey: "groupId" });
+  // TranslationGroup <-> ChatChannel (1:1)
+  db.TranslationGroup.belongsTo(db.ChatChannel, {
+    as: "channel",
+    foreignKey: "channelId",
+  });
 
+  db.ChatChannel.hasOne(db.TranslationGroup, {
+    as: "group",
+    foreignKey: "channelId",
+  });
   // User ↔ TranslationGroupMember (1:N)
   db.User.hasMany(db.TranslationGroupMember, { as: "groupMemberships", foreignKey: "userId" });
   db.TranslationGroupMember.belongsTo(db.User, { as: "user", foreignKey: "userId" });
@@ -407,6 +407,16 @@ db.PostComment = sequelize.define(
   db.Application.belongsTo(db.User, { foreignKey: "reviewedBy", as: "reviewer" });
   // Add an association to TranslationGroup for join_group applications
   db.Application.belongsTo(db.TranslationGroup, { foreignKey: "targetId", as: "targetGroup" });
+
+  // ReviewDraft associations
+  db.ReviewDraft.belongsTo(db.Chapter, { foreignKey: "chapterId" });
+  db.Chapter.hasMany(db.ReviewDraft, { foreignKey: "chapterId" });
+  db.ReviewDraft.belongsTo(db.User, { foreignKey: "userId" });
+  db.User.hasMany(db.ReviewDraft, { foreignKey: "userId" });
+
+  // ReviewPublished associations
+  db.ReviewPublished.belongsTo(db.Chapter, { foreignKey: "chapterId" });
+  db.Chapter.hasMany(db.ReviewPublished, { foreignKey: "chapterId" });
 
   return db;
 };

@@ -111,7 +111,6 @@ export default function ReadingHistory() {
               }
             })
           );
-          console.log(historyWithDetails);
           setReadingHistory(historyWithDetails.filter((item): item is Comic => item !== null));
         }
       } catch (error) {

@@ -17,32 +17,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT,
       allowNull: false,
     },
-    messageType: {
-      type: DataTypes.ENUM('USER', 'BOT', 'SYSTEM'),
-      allowNull: false,
-      defaultValue: 'USER',
-    },
     replyToId: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-    isDeleted: {
-      type: DataTypes.TINYINT,
-      allowNull: false,
-      defaultValue: 0,
-    },
-    deletedBy: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    deletedReason: {
-      type: DataTypes.STRING(255),
-      allowNull: true,
-    },
     isPinned: {
-      type: DataTypes.TINYINT,
+      type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: 0,
+      defaultValue: false,
     },
     metaJson: {
       type: DataTypes.JSON,
@@ -52,7 +34,7 @@ module.exports = (sequelize, DataTypes) => {
     tableName: 'chatmessages',
     timestamps: true,
     createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
+    updatedAt: false,
   });
 
   return ChatMessage;

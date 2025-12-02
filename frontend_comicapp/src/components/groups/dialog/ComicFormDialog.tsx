@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import axios from "axios";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
@@ -42,8 +43,10 @@ interface Genre {
   name: string;
 }
 type ApiComicPayload = { message: string; comic: any };
+
 type ApiOk<T> = { success: true; data: T; meta?: unknown };
 export default function ComicFormDialog({ mode, comic, onSave }: ComicFormDialogProps) {
+  const { groupId } = useParams<{ groupId: string }>();
   const [form, setForm] = useState<Comic>(
     comic || {
       id: 0, title: "", author: "", status: "In Progress",
@@ -146,8 +149,8 @@ export default function ComicFormDialog({ mode, comic, onSave }: ComicFormDialog
     setLoading(true);
     try {
       const url = mode === "add"
-        ? `${import.meta.env.VITE_API_URL}/admin/comics`
-        : `${import.meta.env.VITE_API_URL}/admin/comics/${form.id}`;
+        ? `${import.meta.env.VITE_API_URL}/translator/${groupId}/comics`
+        : `${import.meta.env.VITE_API_URL}/translator/comics/${form.id}`;
 
       const method = mode === "add" ? axios.post : axios.put;
       const res = await method<ApiOk<ApiComicPayload>>(url, {
@@ -161,7 +164,8 @@ export default function ComicFormDialog({ mode, comic, onSave }: ComicFormDialog
       }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
 
       toast.success(mode === "add" ? "Thêm truyện thành công!" : "Cập nhật truyện thành công!");
-      const saved = normalizeComic(res.data.data.comic);
+      const bePayload = res.data.data;
+      const saved = normalizeComic(bePayload.comic);
       onSave(saved);
       setForm({
       id: 0,

@@ -24,6 +24,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false, // user tạo nhóm
       },
+      channelId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      }
     },
     {
       tableName: "translationGroups",

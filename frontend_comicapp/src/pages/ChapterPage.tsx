@@ -39,6 +39,14 @@ interface CheckUnlockResponse {
   chapterId: string;
   message: string;
 }
+interface ReviewAudio {
+  chapterId: number;
+  audioUrl: string;
+  totalDuration: number;
+  timeline: {
+    segments: { pageIndex: number; lineId: string; start: number; end: number }[];
+  };
+};
 
 type ApiOk<T> = { success: true; data: T; meta?: unknown };
 
@@ -83,6 +91,8 @@ export default function ChapterPage() {
   const [isAudioModeOn, setIsAudioModeOn] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  const [reviewAudio, setReviewAudio] = useState<ReviewAudio | null>(null);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
   // Chỉ dùng nếu sau này bạn muốn click thumbnail để nhảy đến ảnh
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(
     null
@@ -91,6 +101,51 @@ export default function ChapterPage() {
   const toggleAudioMode = () => {
     setIsAudioModeOn((prev) => !prev);
   };
+  useEffect(() => {
+    const fetchReviewAudio = async () => {
+      if (!isAudioModeOn || !chapterData) return;
+
+      try {
+        setIsAudioLoading(true);
+        const res = await axios.get<ApiOk<ReviewAudio>>(
+          `${import.meta.env.VITE_API_URL}/reviews/published/${chapterData.id}`
+        );
+
+        const data = res.data.data;
+
+        setReviewAudio(data);
+
+        // gán src cho audio element
+        if (audioRef.current) {
+          audioRef.current.src = data.audioUrl;
+          audioRef.current.currentTime = 0;
+          // KHÔNG cần .play() ở đây, ChapterReader sẽ play khi isAudioModeOn = true
+        }
+      } catch (err: any) {
+        console.error("Lỗi khi lấy audio review:", err);
+
+        const status = err?.response?.status;
+        if (status === 404) {
+          toast.info("Chương này chưa có audio review.");
+        } else {
+          toast.error("Không thể tải audio review.");
+        }
+
+        // tắt audio mode lại nếu failed
+        setIsAudioModeOn(false);
+        setReviewAudio(null);
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        }
+      } finally {
+        setIsAudioLoading(false);
+      }
+    };
+
+    fetchReviewAudio();
+  }, [isAudioModeOn, chapterData?.id]);
+
 
   // Fetch dữ liệu chapter + lịch sử đọc
   useEffect(() => {
@@ -281,6 +336,13 @@ export default function ChapterPage() {
       setUnlockLoading(false);
     }
   };
+  type AudioCue = { timestamp: number; imageIndex: number };
+
+  const audioCues: AudioCue[] =
+    reviewAudio?.timeline?.segments?.map((seg) => ({
+      timestamp: seg.start,
+      imageIndex: Math.max(0, seg.pageIndex - 1), // pageIndex -> index ảnh (0-based)
+    })) ?? [];
 
   // ===== RENDER =====
 
@@ -295,6 +357,7 @@ export default function ChapterPage() {
 
   if (!chapterData) {
     return (
+      
       <div className="min-h-screen flex items-center justify-center text-gray-900 dark:text-white">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">
@@ -315,7 +378,6 @@ export default function ChapterPage() {
     <div className={isDarkMode ? "dark" : ""}>
       <audio
         ref={audioRef}
-        src="/audio/mock-chapter-audio.mp3"
         style={{ display: "none" }}
       />
       <div className="bg-muted text-foreground min-h-screen flex flex-col">
@@ -419,6 +481,8 @@ export default function ChapterPage() {
               }
               isAudioModeOn={isAudioModeOn}
               audioRef={audioRef}
+              audioCues={audioCues}
+              isAudioLoading={isAudioLoading}
             />
           )}
         </main>

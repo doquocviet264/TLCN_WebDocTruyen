@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Search, BookOpen, Eye, Users, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Search, BookOpen, Eye, Users, ChevronsLeft, ChevronsRight, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CreateGroupDialog from "@/components/groups/dialog/CreateGroupDialog"; // Import CreateGroupDialog
 
 // ==== Types khớp với API GET /api/groups ====
 
@@ -120,6 +121,8 @@ const GroupsListPage: React.FC = () => {
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false); // State for dialog visibility
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // State to trigger re-fetch of groups
 
   // Để tránh call API liên tục khi gõ, dùng debouncedQ đơn giản
   const [debouncedQ, setDebouncedQ] = useState("");
@@ -178,7 +181,7 @@ const GroupsListPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, page, limit]);
+  }, [debouncedQ, page, limit, refreshTrigger]); // Add refreshTrigger to dependencies
 
   const totalItems = meta?.totalItems ?? items.length;
   const totalPages = meta?.totalPages ?? 1;
@@ -204,17 +207,23 @@ const GroupsListPage: React.FC = () => {
             Khám phá các nhóm dịch đang hoạt động trên hệ thống.
           </p>
         </div>
-        <div className="mt-2 md:mt-0 md:ml-auto w-full md:w-80 relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Tìm theo tên nhóm, mô tả..."
-            className="pl-9"
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(1); // reset về trang 1 khi đổi search
-            }}
-          />
+        <div className="mt-2 flex items-center gap-3 md:mt-0 md:ml-auto w-full md:w-auto">
+          <Button onClick={() => setIsCreateGroupDialogOpen(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Tạo nhóm mới
+          </Button>
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Tìm theo tên nhóm, mô tả..."
+              className="pl-9"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1); // reset về trang 1 khi đổi search
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -282,6 +291,16 @@ const GroupsListPage: React.FC = () => {
           </div>
         </>
       )}
+
+      <CreateGroupDialog
+        isOpen={isCreateGroupDialogOpen}
+        onClose={() => setIsCreateGroupDialogOpen(false)}
+        onGroupCreated={() => {
+          setIsCreateGroupDialogOpen(false);
+          setRefreshTrigger((prev) => prev + 1); // Trigger a refresh
+          setPage(1); // Go back to the first page to see the new group
+        }}
+      />
     </div>
   );
 };

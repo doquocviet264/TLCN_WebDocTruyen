@@ -9,20 +9,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(100),
       allowNull: false,
     },
-    slug: {
-      type: DataTypes.STRING(100),
-      allowNull: false,
-      unique: true,
-    },
     type: {
-      type: DataTypes.ENUM('GLOBAL', 'ROOM', 'PRIVATE'),
+      type: DataTypes.ENUM('global', 'room', 'private'),
       allowNull: false,
-      defaultValue: 'GLOBAL',
+      defaultValue: 'global',
     },
     isActive: {
-      type: DataTypes.TINYINT,
+      type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: 1,
+      defaultValue: true,
     },
   }, {
     tableName: 'chatchannels', 

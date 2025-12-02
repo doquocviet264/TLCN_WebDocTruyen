@@ -1,18 +1,12 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useContext,
-  useCallback,
-} from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import io, { Socket } from "socket.io-client";
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 import { toast } from "react-toastify";
-import { Send, Hash } from "lucide-react";
+import { Send, Hash, Reply, X, Globe2, Users, Lock } from "lucide-react";
 
 // --- Types ---
-type MessageType = "USER" | "BOT" | "SYSTEM";
+type ChannelType = "global" | "room" | "private";
 
 interface Sender {
   userId: number;
@@ -25,21 +19,26 @@ interface Message {
   channelId: number;
   sender: Sender | null;
   content: string;
-  messageType: MessageType;
   replyToId: number | null;
-  isDeleted: boolean;
-  deletedBy: Sender | null;
-  isPinned: boolean;
   createdAt: string;
+  isPinned?: boolean;
 }
 
 interface Channel {
   channelId: number;
   name: string;
-  slug: string;
-  type: "GLOBAL" | "ROOM" | "PRIVATE";
+  type: ChannelType;
   isActive: boolean;
   createdAt: string;
+}
+
+interface Room {
+  channelId: number;
+  name: string;
+  type: ChannelType;
+  isActive: boolean;
+  joined: boolean;
+  createdAt?: string;
 }
 
 interface ApiOk<T> {
@@ -55,7 +54,6 @@ interface ChatError {
 
 // --- Constants ---
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3000/api";
-const BOT_USER_ID = 99;
 
 function authConfig() {
   const token = localStorage.getItem("token");
@@ -77,8 +75,18 @@ const CommunityChat: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+
+  // Rooms (Explore)
+  const [showRooms, setShowRooms] = useState(false);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [joiningRoomId, setJoiningRoomId] = useState<number | null>(null);
+
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const selectedChannelIdRef = useRef<number | null>(null);
 
   // --- Auto scroll xuống cuối ---
   useEffect(() => {
@@ -88,7 +96,7 @@ const CommunityChat: React.FC = () => {
   }, [messages]);
 
   // --- Load messages cho 1 channel ---
-  const fetchMessages = useCallback(async (channelId: number) => {
+  const fetchMessages = async (channelId: number) => {
     if (!channelId) return;
     setLoadingMessages(true);
     setError(null);
@@ -98,7 +106,7 @@ const CommunityChat: React.FC = () => {
         `${API_BASE}/chat/channels/${channelId}/messages`,
         {
           ...authConfig(),
-          params: { limit: 20 },
+          params: { limit: 50 },
         }
       );
 
@@ -106,7 +114,11 @@ const CommunityChat: React.FC = () => {
         ? res.data.data
         : [];
 
-      // chuẩn hoá: ASC theo messageId
+      // bỏ các tin rỗng
+      fetchedMessages = fetchedMessages.filter(
+        (m) => m.content && m.content.trim().length > 0
+      );
+
       fetchedMessages = [...fetchedMessages].sort(
         (a, b) => a.messageId - b.messageId
       );
@@ -114,17 +126,15 @@ const CommunityChat: React.FC = () => {
       setMessages(fetchedMessages);
     } catch (e: any) {
       const msg =
-        e?.response?.data?.message ||
-        e?.message ||
-        "Lỗi khi tải tin nhắn";
+        e?.response?.data?.message || e?.message || "Lỗi khi tải tin nhắn";
       toast.error(msg);
       setError(msg);
     } finally {
       setLoadingMessages(false);
     }
-  }, []);
+  };
 
-  // --- Init socket 1 lần theo user ---
+  // --- Init socket 1 lần theo user (KHÔNG phụ thuộc selectedChannelId) ---
   useEffect(() => {
     if (!isLoggedIn || !user?.userId) {
       setError("Bạn cần đăng nhập để sử dụng chat.");
@@ -151,7 +161,7 @@ const CommunityChat: React.FC = () => {
       console.log("✅ Socket connected:", socket.id);
       setError(null);
 
-      // 1) Load danh sách kênh
+      // Lấy danh sách kênh từ BE
       try {
         setLoadingChannels(true);
         const res = await axios.get<ApiOk<Channel[]>>(
@@ -165,15 +175,12 @@ const CommunityChat: React.FC = () => {
 
         setChannels(fetchedChannels);
 
-        // 2) Auto join kênh đầu tiên
-        if (fetchedChannels.length > 0) {
+        // Auto join kênh đầu tiên nếu chưa chọn
+        if (fetchedChannels.length > 0 && !selectedChannelIdRef.current) {
           const firstId = fetchedChannels[0].channelId;
-
-          console.log("➡️ Auto join channel", firstId);
-          socket.emit("chat:join", { channelId: firstId });
+          selectedChannelIdRef.current = firstId;
           setSelectedChannelId(firstId);
-
-          // 3) Load messages cho kênh này
+          socket.emit("chat:join", { channelId: firstId });
           fetchMessages(firstId);
         }
       } catch (e: any) {
@@ -201,23 +208,28 @@ const CommunityChat: React.FC = () => {
       setError(`Lỗi kết nối chat: ${err.message}`);
     });
 
-    // ✅ Nhận realtime
+    // Nhận tin nhắn realtime
     socket.on("chat:message", (msg: Message) => {
+      if (!msg || !msg.content || !msg.content.trim().length) return;
       console.log("📥 [chat:message] nhận được:", msg);
-      setMessages((prev) => [...prev, msg]);
+
+      // Chỉ append nếu đang ở đúng channel
+      if (msg.channelId === selectedChannelIdRef.current) {
+        setMessages((prev) => [...prev, msg]);
+      }
     });
 
+    // Tin nhắn bị chặn (từ khóa cấm)
     socket.on(
       "chat:blocked",
-      (data: { channelId: number; reason: string; muteUntil?: string }) => {
-        if (data.channelId === selectedChannelId) {
-          toast.warn(`Tin nhắn của bạn đã bị chặn: ${data.reason}.`);
-          if (data.muteUntil) {
+      (data: { channelId: number; reason: string; detail?: string }) => {
+        if (data.channelId === selectedChannelIdRef.current) {
+          if (data.reason === "BANNED_KEYWORD") {
             toast.warn(
-              `Bạn đã bị mute đến ${new Date(
-                data.muteUntil
-              ).toLocaleTimeString()}.`
+              "Tin nhắn của bạn chứa từ ngữ không phù hợp và đã bị chặn."
             );
+          } else {
+            toast.warn(`Tin nhắn của bạn đã bị chặn: ${data.reason}.`);
           }
         }
       }
@@ -231,48 +243,48 @@ const CommunityChat: React.FC = () => {
     return () => {
       socket.disconnect();
       socketRef.current = null;
+      selectedChannelIdRef.current = null;
     };
-  }, [isLoggedIn, user?.userId, fetchMessages, selectedChannelId]);
+  }, [isLoggedIn, user?.userId]); // <-- không phụ thuộc selectedChannelId
 
   // --- Đổi kênh ---
-  const joinChannel = useCallback(
-    (channelId: number) => {
-      if (!socketRef.current || selectedChannelId === channelId) return;
-      const socket = socketRef.current;
+  const joinChannel = (channelId: number) => {
+    const socket = socketRef.current;
+    if (!socket || selectedChannelIdRef.current === channelId) return;
 
-      if (selectedChannelId !== null) {
-        socket.emit("chat:leave", { channelId: selectedChannelId });
-      }
+    if (selectedChannelIdRef.current !== null) {
+      socket.emit("chat:leave", { channelId: selectedChannelIdRef.current });
+    }
 
-      console.log("➡️ Chuyển sang channel", channelId);
-      socket.emit("chat:join", { channelId });
-      setSelectedChannelId(channelId);
-      setMessages([]);
-      fetchMessages(channelId);
-    },
-    [selectedChannelId, fetchMessages]
-  );
+    socket.emit("chat:join", { channelId });
+    selectedChannelIdRef.current = channelId;
+    setSelectedChannelId(channelId);
+    setMessages([]);
+    setReplyingTo(null);
+    fetchMessages(channelId);
+  };
 
   // --- Gửi tin nhắn ---
   const handleSendMessage = () => {
     if (
       !newMessage.trim() ||
       !socketRef.current ||
-      !selectedChannelId ||
+      !selectedChannelIdRef.current ||
       !user?.userId
     ) {
       return;
     }
 
     const data = {
-      channelId: selectedChannelId,
+      channelId: selectedChannelIdRef.current,
       content: newMessage.trim(),
-      replyToId: null,
+      replyToId: replyingTo ? replyingTo.messageId : null,
     };
 
     console.log("📤 Emit chat:send", data);
     socketRef.current.emit("chat:send", data);
     setNewMessage("");
+    setReplyingTo(null);
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
@@ -282,7 +294,78 @@ const CommunityChat: React.FC = () => {
     }
   };
 
-  // --- UI ---
+  const handleClickReply = (msg: Message) => {
+    setReplyingTo(msg);
+  };
+
+  // --- Khám phá room ---
+  const openRooms = async () => {
+    setShowRooms(true);
+    setLoadingRooms(true);
+    try {
+      const res = await axios.get<ApiOk<Room[]>>(
+        `${API_BASE}/chat/rooms`,
+        authConfig()
+      );
+      const data = Array.isArray(res.data?.data) ? res.data.data : [];
+      setRooms(data);
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.message || e?.message || "Lỗi khi tải danh sách room";
+      toast.error(msg);
+    } finally {
+      setLoadingRooms(false);
+    }
+  };
+
+  const handleJoinRoom = async (room: Room) => {
+    // Nếu đã joined thì chỉ cần chuyển channel
+    if (room.joined) {
+      joinChannel(room.channelId);
+      setShowRooms(false);
+      return;
+    }
+
+    try {
+      setJoiningRoomId(room.channelId);
+      await axios.post<ApiOk<{ channelId: number; joined: boolean }>>(
+        `${API_BASE}/chat/channels/${room.channelId}/join`,
+        null,
+        authConfig()
+      );
+
+      // update rooms joined flag
+      setRooms((prev) =>
+        prev.map((r) =>
+          r.channelId === room.channelId ? { ...r, joined: true } : r
+        )
+      );
+
+      // nếu kênh chưa nằm trong channels thì thêm vào
+      setChannels((prev) => {
+        if (prev.some((c) => c.channelId === room.channelId)) return prev;
+        const newChannel: Channel = {
+          channelId: room.channelId,
+          name: room.name,
+          type: room.type,
+          isActive: room.isActive,
+          createdAt: room.createdAt || new Date().toISOString(),
+        };
+        return [...prev, newChannel];
+      });
+
+      joinChannel(room.channelId);
+      setShowRooms(false);
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.message || e?.message || "Tham gia phòng thất bại";
+      toast.error(msg);
+    } finally {
+      setJoiningRoomId(null);
+    }
+  };
+
+  // --- UI guard ---
   if (!isLoggedIn || !user?.userId) {
     return (
       <div className="p-4 text-center text-red-500">
@@ -290,6 +373,36 @@ const CommunityChat: React.FC = () => {
       </div>
     );
   }
+
+  const renderChannelTypeBadge = (type: ChannelType) => {
+    switch (type) {
+      case "global":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[9px]">
+            <Globe2 className="w-3 h-3" />
+            Global
+          </span>
+        );
+      case "room":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 text-sky-700 px-2 py-0.5 text-[9px]">
+            <Users className="w-3 h-3" />
+            Room
+          </span>
+        );
+      case "private":
+        return (
+          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-50 text-zinc-700 px-2 py-0.5 text-[9px]">
+            <Lock className="w-3 h-3" />
+            Private
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const activeChannel = channels.find((c) => c.channelId === selectedChannelId);
 
   return (
     <div
@@ -317,7 +430,10 @@ const CommunityChat: React.FC = () => {
       >
         <div className="flex flex-col gap-0.5">
           <span className="font-semibold text-sm tracking-wide">
-            Kênh chat
+            Chat cộng đồng
+          </span>
+          <span className="text-[10px] opacity-80">
+            Trao đổi, chia sẻ cùng mọi người
           </span>
         </div>
 
@@ -326,27 +442,32 @@ const CommunityChat: React.FC = () => {
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>Online</span>
           </div>
-          <div className="flex items-center gap-1 text-[10px] bg-black/15 px-2 py-0.5 rounded-full">
+          <div className="flex items-center gap-1 text-[10px] bg-black/15 px-2 py-0.5 rounded-full max-w-[180px]">
             <Hash className="w-3 h-3" />
-            <span className="truncate max-w-[120px]">
-              {channels.find((c) => c.channelId === selectedChannelId)?.name ||
-                "Chưa chọn kênh"}
+            <span className="truncate">
+              {activeChannel?.name || "Chưa chọn kênh"}
             </span>
+            {activeChannel && renderChannelTypeBadge(activeChannel.type)}
           </div>
         </div>
       </div>
 
       {/* Body */}
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex overflow-hidden relative">
         {/* Channels */}
         <aside className="w-44 md:w-48 flex-shrink-0 border-r border-border/60 bg-muted/60 p-3 flex flex-col">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-semibold tracking-wide px-1">
               Kênh chat
             </h3>
-            <span className="text-[10px] text-muted-foreground">
-              {channels.length || 0}
-            </span>
+            <button
+              type="button"
+              onClick={openRooms}
+              className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-background/80 border border-border/60 hover:bg-accent/70 transition"
+            >
+              <Globe2 className="w-3 h-3" />
+              Khám phá
+            </button>
           </div>
 
           {loadingChannels && (
@@ -386,7 +507,16 @@ const CommunityChat: React.FC = () => {
                       isActive ? "bg-primary" : "bg-muted-foreground/60"
                     }`}
                   />
-                  <span className="truncate">{channel.name}</span>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="truncate">{channel.name}</span>
+                    <span className="text-[9px] text-muted-foreground">
+                      {channel.type === "global"
+                        ? "Kênh chung"
+                        : channel.type === "room"
+                        ? "Phòng chủ đề"
+                        : "Kênh nhóm dịch"}
+                    </span>
+                  </div>
                 </li>
               );
             })}
@@ -400,7 +530,7 @@ const CommunityChat: React.FC = () => {
             className="
               flex-1 overflow-y-auto
               px-3.5 py-3
-              space-y-2.5
+              space-y-3
               scrollbar-thin
             "
           >
@@ -430,72 +560,65 @@ const CommunityChat: React.FC = () => {
 
             {messages.map((msg) => {
               const isSelf = msg.sender?.userId === user?.userId;
-              const isBot =
-                msg.messageType === "BOT" ||
-                msg.sender?.userId === BOT_USER_ID;
-              const isSystem = msg.messageType === "SYSTEM";
-
               const timeText = msg.createdAt
                 ? msg.createdAt.split("T")[1]?.split(".")[0] ?? ""
                 : "";
 
-              if (isSystem) {
-                return (
-                  <div
-                    key={msg.messageId}
-                    className="
-                      text-[10px] px-3 py-1.5 mx-auto max-w-[85%]
-                      rounded-full
-                      bg-muted text-muted-foreground
-                      flex items-center justify-between gap-3
-                    "
-                  >
-                    <span className="truncate">{msg.content}</span>
-                    <span className="text-[9px] opacity-70">
-                      {timeText}
-                    </span>
-                  </div>
-                );
-              }
-
               return (
                 <div
                   key={msg.messageId}
-                  className={`flex w-full ${
-                    isSelf ? "justify-end" : "justify-start"
-                  }`}
+                  className={`
+                    relative flex w-full
+                    ${isSelf ? "justify-end" : "justify-start"}
+                  `}
+                  onMouseEnter={() => setHoveredMessageId(msg.messageId)}
+                  onMouseLeave={() =>
+                    setHoveredMessageId((curr) =>
+                      curr === msg.messageId ? null : curr
+                    )
+                  }
                 >
+                  {/* action pill (chỉ còn Reply) */}
+                  {hoveredMessageId === msg.messageId && (
+                    <div
+                      className={`flex items-center ${
+                        isSelf ? "mr-2 order-1" : "ml-2 order-3"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 bg-background/95 border border-border/60 rounded-full px-2 py-0.5 shadow-sm text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => handleClickReply(msg)}
+                          className="p-0.5 rounded-full hover:bg-muted/80 transition"
+                          title="Trả lời"
+                        >
+                          <Reply className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* bubble */}
                   <div
                     className={`
                       max-w-[78%] px-3.5 py-2.5 rounded-2xl text-[12px]
-                      shadow-sm
+                      shadow-sm relative
                       ${
                         isSelf
-                          ? "bg-primary text-primary-foreground rounded-br-md"
-                          : isBot
-                          ? "bg-amber-50 text-amber-900 border border-amber-200 rounded-bl-md"
-                          : "bg-card text-foreground border border-border/40 rounded-bl-md"
+                          ? "bg-primary text-primary-foreground rounded-br-md order-2"
+                          : "bg-card text-foreground border border-border/40 rounded-bl-md order-2"
                       }
                     `}
                   >
                     <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span
-                        className={`
-                          font-semibold text-[11px]
-                          ${
-                            isBot
-                              ? "text-[var(--comic-comment-color)]"
-                              : ""
-                          }
-                        `}
-                      >
-                        {isBot && "🤖 "}
+                      <span className="font-semibold text-[11px]">
                         {msg.sender?.username || "Ẩn danh"}
                       </span>
                       <span className="text-[9px] opacity-70">
                         {timeText}
                       </span>
                     </div>
+
                     <div className="leading-snug break-words whitespace-pre-wrap">
                       {msg.content}
                     </div>
@@ -507,8 +630,28 @@ const CommunityChat: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="border-t border-border/60 bg-background/95 px-3.5 py-3">
+          {/* Input + reply bar */}
+          <div className="border-t border-border/60 bg-background/95 px-3.5 py-3 space-y-2">
+            {replyingTo && (
+              <div className="flex items-start justify-between gap-2 px-3 py-2 rounded-xl bg-muted/80 border border-border/70 text-[11px]">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    Trả lời {replyingTo.sender?.username || "ẩn danh"}
+                  </span>
+                  <span className="text-[10px] line-clamp-1 text-muted-foreground/80">
+                    {replyingTo.content}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReplyingTo(null)}
+                  className="mt-0.5 rounded-full p-1 hover:bg-black/10 transition"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center gap-2.5">
               <input
                 type="text"
@@ -538,7 +681,7 @@ const CommunityChat: React.FC = () => {
                   transition-all
                   disabled:opacity-50 disabled:cursor-not-allowed
                 "
-                disabled={!newMessage.trim()}
+                disabled={!newMessage.trim() || !selectedChannelId}
               >
                 <span>Gửi</span>
                 <Send className="w-3.5 h-3.5" />
@@ -546,6 +689,77 @@ const CommunityChat: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Modal Khám phá room */}
+        {showRooms && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-[10]">
+            <div className="bg-background/95 border border-border/70 rounded-2xl shadow-xl w-[85%] max-h-[80%] flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Khám phá phòng</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRooms(false)}
+                  className="rounded-full p-1 hover:bg-muted/80 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 scrollbar-thin">
+                {loadingRooms && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Đang tải danh sách phòng...
+                  </p>
+                )}
+
+                {!loadingRooms && rooms.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Hiện chưa có phòng chủ đề nào.
+                  </p>
+                )}
+
+                {rooms.map((room) => (
+                  <div
+                    key={room.channelId}
+                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-muted/70 border border-border/60 text-[11px]"
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-[12px]">
+                        {room.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Phòng chủ đề
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleJoinRoom(room)}
+                      disabled={joiningRoomId === room.channelId}
+                      className={`
+                        inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px]
+                        ${
+                          room.joined
+                            ? "bg-primary/10 text-primary border border-primary/40"
+                            : "bg-primary text-primary-foreground"
+                        }
+                        disabled:opacity-60 disabled:cursor-not-allowed
+                      `}
+                    >
+                      {joiningRoomId === room.channelId
+                        ? "Đang tham gia..."
+                        : room.joined
+                        ? "Đã tham gia"
+                        : "Tham gia"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

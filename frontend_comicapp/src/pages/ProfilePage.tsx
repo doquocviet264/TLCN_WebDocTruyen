@@ -194,7 +194,6 @@ export default function ProfilePage() {
           quest.id === questId ? { ...quest, claimed: true } : quest
         ));
 
-        console.log("Nhận thưởng thành công:", response.data.data!.reward);
       }
     } catch (error) {
       console.error("Lỗi khi nhận thưởng:", error);

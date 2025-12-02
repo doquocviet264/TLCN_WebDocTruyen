@@ -315,7 +315,6 @@ const GroupDetailPage: React.FC = () => {
           setGroup(null);
           return;
         }
-        console.log(res.data.data);
         setGroup(res.data.data);
       } catch (err: any) {
         if (cancelled) return;

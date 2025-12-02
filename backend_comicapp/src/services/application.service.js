@@ -212,7 +212,6 @@ module.exports = ({ sequelize, model, applicationRepo }) => {
     },
 
 
-    // PATCH /groups/:groupId/applications/:applicationId
     async reviewGroupJoinApplication(applicationId, groupId, status, reviewerId) {
       const t = await sequelize.transaction();
       try {

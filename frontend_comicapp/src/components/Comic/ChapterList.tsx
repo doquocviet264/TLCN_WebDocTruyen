@@ -211,15 +211,24 @@ export default function ChapterList({ chapters, comicSlug,comicId}: ChapterListP
 
     switch (sortBy) {
       case "newest":
-        result.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+        // Chương lớn → nhỏ (vd: 100, 99, 98)
+        result.sort(
+          (a, b) => Number(b.number) - Number(a.number)
+        );
         break;
+
       case "oldest":
-        result.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+        // Chương nhỏ → lớn (1, 2, 3,...)
+        result.sort(
+          (a, b) => Number(a.number) - Number(b.number)
+        );
         break;
+
       case "mostViewed":
         result.sort((a, b) => (b.views || 0) - (a.views || 0));
         break;
     }
+
 
     return result;
   }, [chapters, searchTerm, sortBy]);

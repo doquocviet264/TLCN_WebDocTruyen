@@ -2,19 +2,17 @@
 const express = require("express");
 const { sequelize, models } = require("../db");
 
-const chatRepo = require("../repositories/chat.repo"); // hoặc chat.repository, miễn đúng file
 const chatServiceFactory = require("../services/chat.service");
 const chatControllerFactory = require("../controllers/chat.controller");
 
-const { protect } = require("../middlewares/auth");
+const { protect, optionalAuth } = require("../middlewares/auth");
 
 const router = express.Router();
 
-// Khởi tạo service + controller giống chapter
+// Khởi tạo service + controller
 const chatService = chatServiceFactory({
   sequelize,
   model: models,
-  repos: { chatRepo },
 });
 const chatController = chatControllerFactory(chatService);
 
@@ -24,9 +22,11 @@ const chatController = chatControllerFactory(chatService);
  *   get:
  *     tags: [Chat]
  *     summary: Lấy danh sách kênh chat
- *     security: [{ bearerAuth: [] }]
+ *     description: 
+ *       - Guest (không đăng nhập): chỉ thấy kênh global.
+ *       - User đăng nhập: thấy kênh global + các room đã tham gia.
  */
-router.get("/channels", protect, chatController.getChannels);
+router.get("/channels", optionalAuth, chatController.getChannels);
 
 /**
  * @openapi
@@ -42,4 +42,22 @@ router.get(
   chatController.getChannelMessages
 );
 
+router.post(
+  "/messages/:messageId/pin",
+  protect,
+  chatController.pinMessage
+);
+
+router.post(
+  "/messages/:messageId/unpin",
+  protect,
+  chatController.unpinMessage
+);
+// POST /chat/channels/:channelId/join
+router.post(
+  "/channels/:channelId/join",
+  protect,
+  chatController.joinChannel
+);
+router.get('/rooms', optionalAuth, chatController.listRooms);
 module.exports = router;

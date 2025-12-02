@@ -1,5 +1,6 @@
 const ok = require("../utils/responses/ok");
 const asyncHandler = require("../middlewares/asyncHandler");
+const models = require("../models");
 
 module.exports = (comicService) => ({
   getComicDetails: asyncHandler(async (req, res) => {
@@ -82,5 +83,31 @@ module.exports = (comicService) => ({
   deleteComic: asyncHandler(async (req, res) => {
     const data = await comicService.deleteComic({ id: req.params.id });
     return ok(res, {data});
+  }),
+
+  // Translator Group Leader
+  getComicsForTranslatorGroup: asyncHandler(async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
+    const groupId = req.params.groupId;
+    const { comics, meta } = await comicService.getComicsForTranslatorGroup({ groupId, page, limit });
+    return ok(res, { data: comics, meta });
+  }),
+
+  addComicToGroup: asyncHandler(async (req, res) => {
+    // groupId is expected to be in req.body from the validator
+    const groupId = req.params.groupId;
+    const data = await comicService.addComicToGroup({groupId, body: req.body });
+    return ok(res, { data });
+  }),
+
+  updateComicInGroup: asyncHandler(async (req, res) => {
+    const data = await comicService.updateComicInGroup({ comicId: req.params.comicId, groupId: req.params.groupId, payload: req.body });
+    return ok(res, { data });
+  }),
+
+  deleteComicFromGroup: asyncHandler(async (req, res) => {
+    const data = await comicService.deleteComicFromGroup({ comicId: req.params.comicId, groupId: req.params.groupId });
+    return ok(res, { data });
   }),
 });

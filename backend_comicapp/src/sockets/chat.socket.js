@@ -1,201 +1,182 @@
-// src/sockets/chat.socket.js (hoặc app/sockets)
-
+// app/sockets/chat.socket.js
 const { models } = require("../db");
-const chatRepository = require("../repositories/chat.repo");
-const chatStrikeRepository = require("../repositories/chatStrike.repo");
-const chatMuteRepository = require("../repositories/chatMute.repo");
 const moderationServiceFactory = require("../services/moderation.service");
-const botServiceFactory = require("../services/bot.service");
 
-const BOT_USER_ID = 99;
+// Map lưu trạng thái online: channelId -> Map<userId, connectionCount>
+const channelOnlineMap = new Map();
 
-// Gom vào 1 object để truyền cho service
-const repositories = {
-  chatRepository,
-  chatStrikeRepository,
-  chatMuteRepository,
-};
-
-const moderationService = moderationServiceFactory(repositories, models, BOT_USER_ID);
-const botService = botServiceFactory(repositories, models, BOT_USER_ID);
+// Service
+const moderationService = moderationServiceFactory(models);
 
 function attachChatSocket(io, socket) {
-  // 📌 Handler gửi tin nhắn
-const handleChatSend = async (payload) => {
-  console.log("📩 [chat:send] from socket", socket.id, "payload =", payload);
+  // Track các channel mà socket này đang join
+  socket.joinedChannels = new Set();
 
-  try {
-    const user = socket.user;
-    const userId = user?.userId;
-    if (!userId) {
-      return socket.emit("chat:error", {
-        message: "Bạn cần đăng nhập để gửi tin nhắn.",
-      });
-    }
-
-    const { channelId, content, replyToId } = payload || {};
-    if (!channelId || typeof content !== "string") {
-      return socket.emit("chat:error", {
-        message: "Thiếu channelId hoặc nội dung tin nhắn.",
-      });
-    }
-
-    const trimmed = content.trim();
-    if (!trimmed) return;
-
-    // 1) Check mute
-    const muteCheck = await moderationService.checkMute({ userId, channelId });
-    if (muteCheck.isMuted) {
-      await botService.notifyUserMuted({
-        io,
-        channelId,
-        user,
-        mute: muteCheck.mute,
-      });
-      socket.emit("chat:blocked", {
-        channelId,
-        reason: "MUTED",
-        muteUntil: muteCheck.mute.mutedUntil,
-      });
-      return;
-    }
-
-    // 2) ĐÁNH GIÁ NỘI DUNG TRƯỚC
-    const decision = await moderationService.evaluateMessage({
-      user,
+  // ===================== helper =====================
+  function emitOnlineUsers(channelId) {
+    const roomMap = channelOnlineMap.get(channelId);
+    const userIds = roomMap ? Array.from(roomMap.keys()) : [];
+    io.to(`channel:${channelId}`).emit("chat:onlineUsers", {
       channelId,
-      content: trimmed,
+      userIds,
     });
+  }
 
-    // 👉 Nếu sau này bạn có action "BLOCK" thì có thể chặn luôn ở đây:
-    // if (decision.action === "BLOCK") { ... return; }
+  function addOnlineUser(channelId, userId) {
+    let roomMap = channelOnlineMap.get(channelId);
+    if (!roomMap) {
+      roomMap = new Map();
+      channelOnlineMap.set(channelId, roomMap);
+    }
+    const prev = roomMap.get(userId) || 0;
+    roomMap.set(userId, prev + 1);
+    emitOnlineUsers(channelId);
+  }
 
-    // 3) TẠO MESSAGE USER TRƯỚC
-    const messageRow = await chatRepository.createMessage(
-      {
+  function removeOnlineUser(channelId, userId) {
+    const roomMap = channelOnlineMap.get(channelId);
+    if (!roomMap) return;
+    const prev = roomMap.get(userId) || 0;
+    if (prev <= 1) {
+      roomMap.delete(userId);
+    } else {
+      roomMap.set(userId, prev - 1);
+    }
+    emitOnlineUsers(channelId);
+  }
+
+  // ===================== chat:send =====================
+  const handleChatSend = async (payload) => {
+    console.log("📩 [chat:send] from socket", socket.id, "payload =", payload);
+
+    try {
+      const user = socket.user;
+      const userId = user?.userId;
+      if (!userId) {
+        return socket.emit("chat:error", {
+          message: "Bạn cần đăng nhập để gửi tin nhắn.",
+        });
+      }
+
+      const { channelId, content, replyToId } = payload || {};
+      if (!channelId || typeof content !== "string") {
+        return socket.emit("chat:error", {
+          message: "Thiếu channelId hoặc nội dung tin nhắn.",
+        });
+      }
+
+      const trimmed = content.trim();
+      if (!trimmed) return;
+
+      // 1) Lấy thông tin channel
+      const channel = await models.ChatChannel.findByPk(channelId);
+      if (!channel || !channel.isActive) {
+        return socket.emit("chat:error", {
+          message: "Không tìm thấy kênh chat.",
+        });
+      }
+
+      // 2) Evaluate nội dung (check từ khóa cấm)
+      const decision = await moderationService.evaluateMessage({
+        user,
+        channelId,
+        content: trimmed,
+      });
+
+      // 👉 Nếu chứa từ cấm => KHÔNG lưu message, KHÔNG emit cho kênh
+      if (decision.action === "BLOCK") {
+        socket.emit("chat:blocked", {
+          channelId,
+          reason: "BANNED_KEYWORD",
+          detail: decision.reason, // "OFFENSIVE_LANGUAGE"
+        });
+        return;
+      }
+
+      // 3) Tạo message bình thường
+      const messageRow = await models.ChatMessage.create({
         channelId,
         userId,
         content: trimmed,
-        messageType: "USER",
         replyToId: replyToId || null,
-      },
-      { model: models }
-    );
+      });
 
-    const sender = await models.User.findByPk(userId, {
-      attributes: ["userId", "username", "avatar"],
-    });
+      const sender = await models.User.findByPk(userId, {
+        attributes: ["userId", "username", "avatar"],
+      });
 
-    const dto = {
-      messageId: messageRow.messageId,
-      channelId: messageRow.channelId,
-      content: messageRow.content,
-      messageType: messageRow.messageType,
-      replyToId: messageRow.replyToId,
-      isDeleted: messageRow.isDeleted,
-      deletedBy: null,
-      isPinned: messageRow.isPinned,
-      createdAt: messageRow.createdAt.toISOString(),
-      sender: sender
-        ? {
-            userId: sender.userId,
-            username: sender.username,
-            avatar: sender.avatar,
-          }
-        : null,
-    };
-
-    // ✅ Broadcast tin nhắn USER trước
-    io.to(`channel:${channelId}`).emit("chat:message", dto);
-
-    // 4) SAU ĐÓ mới xử lý cảnh báo / strike / mute
-    if (decision.action === "WARN") {
-      // ghi strike có gắn messageId luôn cho đẹp
-      await moderationService.addStrike({
-        userId,
-        channelId,
+      const dto = {
         messageId: messageRow.messageId,
-        score: 1,
-        reason: decision.reason,
-        source: "AUTO_RULE",
-        createdBy: BOT_USER_ID,
+        channelId: messageRow.channelId,
+        content: messageRow.content,
+        replyToId: messageRow.replyToId,
+        isPinned: !!messageRow.isPinned,
+        createdAt: messageRow.createdAt.toISOString(),
+        sender: sender
+          ? {
+              userId: sender.userId,
+              username: sender.username,
+              avatar: sender.avatar,
+            }
+          : null,
+      };
+
+      // 4) Gửi cho tất cả user trong kênh
+      io.to(`channel:${channelId}`).emit("chat:message", dto);
+    } catch (err) {
+      console.error("❌ Error in handleChatSend:", err);
+      socket.emit("chat:error", {
+        message: "Gửi tin nhắn thất bại",
+        error: err.message,
       });
-
-      // bot cảnh báo
-      await botService.warnUserInChannel({
-        io,
-        channelId,
-        username: sender.username,
-        reason: decision.reason,
-      });
-
-      // kiểm tra escalte mute
-      const escalation = await moderationService.shouldEscalateToMute({
-        userId,
-        channelId,
-      });
-
-      if (escalation?.shouldMute) {
-        const now = new Date();
-        const endOfDay = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          23,
-          59,
-          59,
-          999
-        );
-
-        const mute = await moderationService.createMute({
-          userId,
-          channelId,
-          mutedUntil: endOfDay,
-          reason: "TOO_MANY_VIOLATIONS",
-          createdBy: BOT_USER_ID,
-        });
-
-        await botService.notifyUserMuted({
-          io,
-          channelId,
-          user,
-          mute,
-        });
-
-        socket.emit("chat:blocked", {
-          channelId,
-          reason: "MUTED_DUE_TO_STRIKES",
-          muteUntil: mute.mutedUntil,
-        });
-      }
     }
-  } catch (err) {
-    console.error("❌ Error in handleChatSend:", err);
-    socket.emit("chat:error", {
-      message: "Gửi tin nhắn thất bại",
-      error: err.message,
-    });
-  }
-};
+  };
 
-
+  // ===================== JOIN / LEAVE =====================
   const handleJoin = ({ channelId }) => {
     if (!channelId) return;
     const roomName = `channel:${channelId}`;
+
     socket.join(roomName);
-    console.log(`👤 User ${socket.user.userId} joined ${roomName}`);
+    socket.joinedChannels.add(channelId);
+
+    const userId = socket.user?.userId;
+    if (userId) {
+      addOnlineUser(channelId, userId);
+    }
+
+    console.log(`👤 User ${socket.user?.userId} joined ${roomName}`);
   };
 
   const handleLeave = ({ channelId }) => {
     if (!channelId) return;
     const roomName = `channel:${channelId}`;
+
     socket.leave(roomName);
-    console.log(`👤 User ${socket.user.userId} left ${roomName}`);
+    socket.joinedChannels.delete(channelId);
+
+    const userId = socket.user?.userId;
+    if (userId) {
+      removeOnlineUser(channelId, userId);
+    }
+
+    console.log(`👤 User ${socket.user?.userId} left ${roomName}`);
   };
 
+  // ===================== socket events =====================
   socket.on("chat:send", handleChatSend);
   socket.on("chat:join", handleJoin);
   socket.on("chat:leave", handleLeave);
+
+  socket.on("disconnect", () => {
+    const userId = socket.user?.userId;
+    if (!userId) return;
+
+    // Khi disconnect, remove khỏi tất cả channel mà socket đã join
+    for (const channelId of socket.joinedChannels) {
+      removeOnlineUser(channelId, userId);
+    }
+  });
 }
 
 module.exports = attachChatSocket;

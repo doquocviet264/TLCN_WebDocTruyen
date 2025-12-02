@@ -9,8 +9,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useDetailedReadingHistory } from "../../hook/useReadingHistory";
-import { audioCues } from "../../mocks/mock-audio-script";
-
+type AudioCue = { timestamp: number; imageIndex: number };
 interface ChapterReaderProps {
   loading: boolean;
   images: string[];
@@ -31,6 +30,8 @@ interface ChapterReaderProps {
   // audio mode
   isAudioModeOn: boolean;
   audioRef: RefObject<HTMLAudioElement | null>;
+  audioCues?: AudioCue[];
+  isAudioLoading?: boolean;
 }
 
 export function ChapterReader({
@@ -50,6 +51,8 @@ export function ChapterReader({
   scrollToImageIndex,
   isAudioModeOn,
   audioRef,
+  audioCues = [],
+  isAudioLoading = false,
 }: ChapterReaderProps) {
   // refs cho từng ảnh
   const imageRefs = useRef<RefObject<HTMLImageElement>[]>([]);
@@ -107,8 +110,6 @@ export function ChapterReader({
 
       const offset = 0; // nếu có header fixed, set số px ở đây
       const top = el.offsetTop - offset;
-
-      console.log("[ScrollInit] Cuộn ngay tới index", idx, "=> top:", top);
 
       window.scrollTo({ top, behavior: "auto" });
       hasScrolledToInitial.current = true;
@@ -187,95 +188,94 @@ export function ChapterReader({
   });
 
   // AUDIO SCROLLING
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+useEffect(() => {
+  const audio = audioRef.current;
+  if (!audio) return;
+  if (!isAudioModeOn) return;
+  if (!audioCues.length) return; // không có timeline thì thôi
 
-    let animationFrameId: number;
+  let animationFrameId: number;
 
-    const updateScroll = () => {
-      const currentTime = audio.currentTime;
+  const updateScroll = () => {
+    const currentTime = audio.currentTime;
 
-      // Tìm cue hiện tại
-      const currentCueIndex = audioCues
-        .slice()
-        .reverse()
-        .findIndex((cue) => cue.timestamp <= currentTime);
+    // Tìm cue hiện tại
+    const currentCueIndexReversed = audioCues
+      .slice()
+      .reverse()
+      .findIndex((cue) => cue.timestamp <= currentTime);
 
-      if (currentCueIndex === -1) {
-        animationFrameId = requestAnimationFrame(updateScroll);
-        return;
-      }
-
-      const currentCue =
-        audioCues[audioCues.length - 1 - currentCueIndex];
-      const nextCue =
-        audioCues[audioCues.length - currentCueIndex];
-      if (!nextCue) {
-        // Đã là cue cuối
-        animationFrameId = requestAnimationFrame(updateScroll);
-        return;
-      }
-
-      // Lấy element
-      const startEl =
-        imageRefs.current[currentCue.imageIndex]?.current ?? null;
-      const endEl =
-        imageRefs.current[nextCue.imageIndex]?.current ?? null;
-
-      if (!startEl || !endEl) {
-        animationFrameId = requestAnimationFrame(updateScroll);
-        return;
-      }
-
-      // Tính toán vị trí cuộn mượt (interpolation)
-      const startY =
-        startEl.getBoundingClientRect().top + window.scrollY;
-      const endY =
-        endEl.getBoundingClientRect().top + window.scrollY;
-
-      const segmentDuration =
-        nextCue.timestamp - currentCue.timestamp;
-      const timeIntoSegment =
-        currentTime - currentCue.timestamp;
-      const progress = Math.min(
-        timeIntoSegment / segmentDuration,
-        1
-      );
-
-      const newScrollY =
-        startY + (endY - startY) * progress;
-
-      window.scrollTo({ top: newScrollY, behavior: "auto" });
+    if (currentCueIndexReversed === -1) {
       animationFrameId = requestAnimationFrame(updateScroll);
-    };
-    
-    // Chặn cuộn tay khi đang ở audio mode
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-    };
-
-    if (isAudioModeOn && readingMode === "long-strip") {
-      window.addEventListener("wheel", handleWheel, {
-        passive: false,
-      });
-
-      const playPromise = audio.play();
-      if (playPromise) {
-        playPromise.catch((err) =>
-          console.error("Lỗi khi phát audio:", err)
-        );
-      }
-
-      animationFrameId = requestAnimationFrame(updateScroll);
+      return;
     }
 
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener("wheel", handleWheel);
-      if (audio && !audio.paused) audio.pause();
-    };
-  }, [isAudioModeOn, audioRef, readingMode, images, chapterId]);
+    const currentCue =
+      audioCues[audioCues.length - 1 - currentCueIndexReversed];
+    const nextCue =
+      audioCues[audioCues.length - currentCueIndexReversed];
+
+    if (!nextCue) {
+      // cue cuối
+      animationFrameId = requestAnimationFrame(updateScroll);
+      return;
+    }
+
+    const startEl =
+      imageRefs.current[currentCue.imageIndex]?.current ?? null;
+    const endEl =
+      imageRefs.current[nextCue.imageIndex]?.current ?? null;
+
+    if (!startEl || !endEl) {
+      animationFrameId = requestAnimationFrame(updateScroll);
+      return;
+    }
+
+    const startY =
+      startEl.getBoundingClientRect().top + window.scrollY;
+    const endY =
+      endEl.getBoundingClientRect().top + window.scrollY;
+
+    const segmentDuration =
+      nextCue.timestamp - currentCue.timestamp;
+    const timeIntoSegment =
+      currentTime - currentCue.timestamp;
+    const progress = Math.min(
+      timeIntoSegment / segmentDuration,
+      1
+    );
+
+    const newScrollY =
+      startY + (endY - startY) * progress;
+
+    window.scrollTo({ top: newScrollY, behavior: "auto" });
+    animationFrameId = requestAnimationFrame(updateScroll);
+  };
+
+  const handleWheel = (e: WheelEvent) => {
+    // khi audio mode đang chạy thì chặn cuộn tay
+    e.preventDefault();
+  };
+
+  window.addEventListener("wheel", handleWheel, {
+    passive: false,
+  });
+
+  const playPromise = audio.play();
+  if (playPromise) {
+    playPromise.catch((err) =>
+      console.error("Lỗi khi phát audio:", err)
+    );
+  }
+
+  animationFrameId = requestAnimationFrame(updateScroll);
+
+  return () => {
+    cancelAnimationFrame(animationFrameId);
+    window.removeEventListener("wheel", handleWheel);
+    if (!audio.paused) audio.pause();
+  };
+}, [isAudioModeOn, audioRef, readingMode, images, chapterId, audioCues]);
 
   // AUTO PLAY
   useEffect(() => {
@@ -338,6 +338,11 @@ export function ChapterReader({
   // UI
   return (
     <div className={`mx-auto ${imageWidth} transition-all duration-300`}>
+      {isAudioModeOn && isAudioLoading && (
+        <p className="text-center text-sm text-muted-foreground mb-2">
+          Đang tải audio review...
+        </p>
+      )}
       <div className="flex flex-col items-center gap-1">
         {readingMode === "long-strip" ? (
           images.map((src, index) => (

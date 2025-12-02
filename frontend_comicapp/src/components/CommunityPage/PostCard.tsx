@@ -166,7 +166,6 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
 
   useEffect(() => {
     setLocalPost(post);
-    console.log(post);
   }, [post]);
 
   useEffect(() => {

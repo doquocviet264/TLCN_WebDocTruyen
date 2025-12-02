@@ -41,4 +41,36 @@ module.exports = (chapterService) => ({
     const data = await chapterService.deleteChapter({ id: +id });
     return ok(res, {data});
   }),
+
+  // Translator Group Member/Leader
+  getChaptersForTranslatorGroup: asyncHandler(async (req, res) => {
+    const { comicId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
+    const { chapters, meta } = await chapterService.getChaptersForTranslatorGroup({ comicId: +comicId, page, limit });
+    return ok(res, { data: chapters, meta });
+  }),
+
+  addChapterToGroup: asyncHandler(async (req, res) => {
+    const { comicId } = req.params;
+    const { title, chapterNumber, cost, isLocked, images } = req.body;
+    const groupId = req.params.groupId; // Set by setGroupIdFromComic middleware
+    const data = await chapterService.addChapterToGroup({ comicId: +comicId, groupId, title, chapterNumber, cost, isLocked, images });
+    return ok(res, { data });
+  }),
+
+  updateChapterInGroup: asyncHandler(async (req, res) => {
+    const { chapterId } = req.params;
+    const { title, chapterNumber, cost, isLocked, images } = req.body;
+    const groupId = req.params.groupId; // Set by setGroupIdFromChapter middleware
+    const data = await chapterService.updateChapterInGroup({ chapterId: +chapterId, groupId, title, chapterNumber, cost, isLocked, images });
+    return ok(res, { data });
+  }),
+
+  deleteChapterInGroup: asyncHandler(async (req, res) => {
+    const { chapterId } = req.params;
+    const groupId = req.params.groupId; // Set by setGroupIdFromChapter middleware
+    const data = await chapterService.deleteChapterInGroup({ chapterId: +chapterId, groupId });
+    return ok(res, {data});
+  }),
 });

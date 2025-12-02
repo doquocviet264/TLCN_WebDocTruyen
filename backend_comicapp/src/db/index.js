@@ -15,8 +15,8 @@ const models = buildModels(sequelize, DataTypes);
 
 async function initDb() {
   await sequelize.authenticate();
-  await sequelize.sync(); // hoặc { alter:false }
-  console.log("✅ Database connected & synced");
+  await sequelize.sync();
+  console.log("Database connected & synced");
 }
 
 module.exports = { sequelize, models, initDb };

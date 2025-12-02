@@ -177,7 +177,6 @@ export default function GroupMembersPage() {
           { headers }
         );
 
-        console.log("eligible-members response:", res.data);
 
         if (!res.data.success || !res.data.data) {
           throw new Error(res.data.error?.message || "Không thể tìm kiếm user");

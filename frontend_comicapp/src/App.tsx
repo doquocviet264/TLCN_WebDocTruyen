@@ -31,14 +31,15 @@ import Comments from "./pages/admin/ManageComment";
 import Genres from "./pages/admin/ManageGenre";
 import Notifications from "./pages/admin/ManageNotification"; 
 import Application from "./pages/admin/ApplicationManagementPage"; 
-
+import ReviewEditor from "./components/admin/comics/ReviewEditor";
 
 import GroupLayout from "./layouts/GroupLayout";
-import GroupManagementPage from "./pages/GroupManagementPage";
-import GroupSettingsPage from "./pages/GroupSettingsPage";
+import GroupManagementPage from "./pages/Group/GroupManagementPage";
+import GroupSettingsPage from "./pages/Group/GroupSettingsPage";
 import GroupChatPage from "./pages/Group/GroupChatPage";
-import GroupMembersPage from "./pages/GroupMembersPage";
-
+import GroupMembersPage from "./pages/Group/GroupMembersPage";
+import GroupComicManagePage from "./pages/Group/GroupManageComics";
+import GroupComicManageDetailPage from "./pages/Group/GroupManageChapter";
 function App() {
   return (
     <AuthProvider>
@@ -68,6 +69,7 @@ function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="comics" element={<Comics />} />
             <Route path="comics/:id" element={<ComicDetail />} />
+            <Route path="comics/:id/:chapterId" element={<ComicDetail />} />
             <Route path="users" element={<Users />} />
             <Route path="reports" element={<Reports />} />
             <Route path="comments" element={<Comments />} />
@@ -78,6 +80,7 @@ function App() {
 
           <Route path="/groups/:groupId/manage" element={<GroupLayout />}>
             <Route path="" element={<GroupManagementPage />} />
+            <Route path="comics" element={<GroupComicManagePage />} />
             <Route path="members" element={<GroupMembersPage />} />
             <Route path="settings" element={<GroupSettingsPage />} />
             <Route path="chat" element={<GroupChatPage />} />

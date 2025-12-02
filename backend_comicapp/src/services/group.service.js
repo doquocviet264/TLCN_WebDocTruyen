@@ -22,9 +22,15 @@ module.exports = ({ sequelize, model, repos }) => {
       }
 
       return sequelize.transaction(async (t) => {
+        // tạo channel chat
+        const channel = await model.ChatChannel.create({
+          name: `Nhóm chat: ${name}`,
+          type: 'private',
+        }, { transaction: t });
+
         // tạo group
         const group = await groupRepo.create(
-          { name, description, avatarUrl, ownerId },
+          { name, description, avatarUrl, ownerId, channelId: channel.channelId },
           { model, transaction: t }
         );
 
@@ -215,6 +221,7 @@ module.exports = ({ sequelize, model, repos }) => {
         avatarUrl: g.avatarUrl,
         ownerId: g.ownerId,
         createdAt: g.createdAt,
+        channelId: g.channelId,
 
         stats: {
         totalMembers,

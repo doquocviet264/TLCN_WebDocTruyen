@@ -596,5 +596,209 @@ module.exports = ({ sequelize, model, repos }) => {
     }
   },
 
+    // ========== Translator Group Leader ==========
+    async getComicsForTranslatorGroup({ groupId, page = 1, limit = 30 }) {
+      console.log("groupId", groupId); 
+      if (!groupId) throw new AppError("Không có groupId", 400, "VALIDATION_ERROR"); 
+      const offset = (page - 1) * limit;
+      const { count, rows } = await comicRepo.findAndCountAll(
+        {
+          where: { groupId },
+          include: [
+            { model: model.Genre, attributes: ["name"], through: { attributes: [] } },
+            { model: model.AlternateName, as: "AlternateNames", attributes: ["name"] },
+          ],
+          attributes: {
+            include: [
+              [literal("(SELECT COUNT(*) FROM ComicFollows WHERE ComicFollows.comicId = Comic.comicId)"), "followerCount"],
+              [literal("(SELECT SUM(views) FROM Chapters WHERE Chapters.comicId = Comic.comicId)"), "totalViews"],
+              [literal("(SELECT AVG(score) FROM ComicRatings WHERE ComicRatings.comicId = Comic.comicId)"), "avgRating"],
+            ],
+          },
+          order: [["updatedAt","DESC"]],
+          limit, offset, distinct: true,
+        },
+        { model }
+      );
+
+      const comics = rows.map(c => ({
+        id: c.comicId, title: c.title, slug: c.slug, author: c.author, image: c.coverImage,
+        status: c.status,
+        genres: c.Genres.map(g => g.name),
+        aliases: c.AlternateNames.map(a => a.name),
+        description: c.description,
+        followers: parseInt(c.get("followerCount")) || 0,
+        views: parseInt(c.get("totalViews")) || 0,
+        rating: c.get("avgRating") ? +(+c.get("avgRating")).toFixed(1) : 0,
+        updatedAt: c.updatedAt, createdAt: c.createdAt,
+      }));
+
+      return { comics, meta: { page, limit, total: count, totalPages: Math.ceil(count/limit) } };
+    },
+
+    async addComicToGroup({ groupId, body }) {
+    return await sequelize.transaction(async (t) => {
+      const { title, author, status, description, image, genres = [], aliases = [] } = body;
+
+      if (!genres.length) throw new AppError("Truyện phải có ít nhất một thể loại", 400, "VALIDATION_ERROR");
+      if (!description?.trim()) throw new AppError("Mô tả truyện không được để trống", 400, "VALIDATION_ERROR");
+      if (!title?.trim()) throw new AppError("Tiêu đề truyện không được để trống", 400, "VALIDATION_ERROR");
+      if (!groupId) throw new AppError("Không có groupId", 400, "VALIDATION_ERROR");
+
+      const existed = await model.Comic.findOne({
+        where: { title },
+        transaction: t,
+      });
+      if (existed) throw new AppError("Tên truyện đã tồn tại", 400, "DUPLICATE_TITLE");
+
+      const slug = await generateUniqueSlug(title);
+      const coverImageUrl = await processImage(image, null);
+
+      const comic = await comicRepo.create(
+        { title, author: author || "Đang cập nhật", status, description, coverImage: coverImageUrl, slug, groupId },
+        { model, transaction: t }
+      );
+
+      if (genres.length) {
+        const genreRecords = await genreRepo.findAll(
+          { where: { name: { [Op.in]: genres } } },
+          { model, transaction: t }
+        );
+        await comic.setGenres(genreRecords, { transaction: t });
+      }
+
+      if (aliases.length) {
+        await altNameRepo.bulkCreate(
+          aliases.map((name) => ({ comicId: comic.comicId, name })),
+          { model, transaction: t }
+        );
+      }
+      
+      const newComic = await model.Comic.findByPk(comic.comicId, {
+      include: [
+        {
+          model: model.Genre,
+          attributes: ["name"],
+          through: { attributes: [] },
+        },
+        { model: model.AlternateName, attributes: ["name"] },
+      ],
+      transaction: t,
+    });
+      return { message: "Thêm comic thành công", comic: newComic };
+    });
+  },
+
+
+    async updateComicInGroup({ comicId, groupId, payload }) {
+      return await sequelize.transaction(async (t) => {
+        const { title, author, status, description, image, genres, aliases } = payload;
+        const comic = await model.Comic.findOne({
+          where: {
+            comicId,
+            groupId, 
+          },
+          transaction: t,
+        });
+        if (!comic) throw new AppError("Không tìm thấy comic trong nhóm này", 404, "COMIC_NOT_FOUND_IN_GROUP");
+
+        const coverImageUrl = await processImage(image, comic.coverImage);
+        await comic.update({ title, author, status, description, coverImage: coverImageUrl }, { transaction: t });
+
+        if (Array.isArray(genres)) {
+          const records = await genreRepo.findAll(
+            { where: { name: { [Op.in]: genres } }, transaction: t },
+            { model }
+            );
+          await comic.setGenres(records, { transaction: t });
+        }
+
+        if (Array.isArray(aliases)) {
+          const old = await altNameRepo.findAll({ comicId: comicId }, { model, transaction: t });
+          const oldNames = old.map(a => a.name);
+          const newNames = aliases;
+
+          const toDelete = oldNames.filter(n => !newNames.includes(n));
+          if (toDelete.length) await altNameRepo.destroy({ comicId: comicId, name: toDelete }, { model, transaction: t });
+
+          const toAdd = newNames.filter(n => !oldNames.includes(n));
+          if (toAdd.length) await altNameRepo.bulkCreate(toAdd.map(name => ({ comicId: comicId, name })), { model, transaction: t });
+        }
+
+        const updated = await comicRepo.findByPk(
+        comicId,
+        {
+            include: [
+            { model: model.Genre, attributes: ["name"], through: { attributes: [] } },
+            { model: model.AlternateName, attributes: ["name"] },
+            ],
+        },
+        { model }
+        );
+        return { message: "Cập nhật comic thành công", comic: updated };
+      });
+    },
+
+    async deleteComicFromGroup({ comicId, groupId }) {
+    return sequelize.transaction(async (t) => {
+      const { Op } = model.Sequelize;
+
+      const comic = await model.Comic.findByPk(comicId, { where: { groupId }, transaction: t });
+      if (!comic) throw new AppError("Không tìm thấy comic trong nhóm này", 404, "COMIC_NOT_FOUND_IN_GROUP");
+
+      // Xóa ảnh bìa Cloudinary (không chặn flow nếu fail)
+      const coverUrl = comic.coverImage;
+      if (coverUrl && /res\.cloudinary\.com/.test(coverUrl)) {
+        const publicId = getCloudinaryPublicId(coverUrl);
+        if (publicId) {
+          cloudinary.uploader.destroy(publicId).catch(() => {}); // không throw, tránh ảnh hưởng TX
+        }
+      }
+
+      // Gom dữ liệu liên quan
+      const chapters = await model.Chapter.findAll({
+        where: { comicId: comicId }, attributes: ["chapterId"], transaction: t,
+      });
+      const chapterIds = chapters.map(c => c.chapterId);
+
+      const comments = await model.Comment.findAll({
+        where: { comicId: comicId }, attributes: ["commentId"], transaction: t,
+      });
+      const commentIds = comments.map(c => c.commentId);
+
+      // Xóa phụ thuộc
+      if (chapterIds.length) {
+        await Promise.all([
+          model.ChapterImage.destroy({ where: { chapterId: { [Op.in]: chapterIds } }, transaction: t }),
+          model.ChapterUnlock.destroy({ where: { chapterId: { [Op.in]: chapterIds } }, transaction: t }),
+          model.Transaction.destroy({ where: { chapterId: { [Op.in]: chapterIds } }, transaction: t }),
+        ]);
+      }
+
+      if (commentIds.length) {
+        await model.CommentLikes.destroy({ where: { commentId: { [Op.in]: commentIds } }, transaction: t });
+      }
+
+      await Promise.all([
+        model.Comment.destroy({ where: { comicId: comicId }, transaction: t }),
+        model.ReadingHistory.destroy({ where: { comicId: comicId }, transaction: t }),
+        model.ComicRating.destroy({ where: { comicId: comicId }, transaction: t }),
+        model.ComicFollow.destroy({ where: { comicId: comicId }, transaction: t }),
+        model.ComicLike.destroy({ where: { comicId: comicId }, transaction: t }),
+        model.AlternateName.destroy({ where: { comicId: comicId }, transaction: t }),
+      ]);
+
+      // Bỏ liên kết thể loại (through)
+      await comic.setGenres([], { transaction: t });
+
+      if (chapterIds.length) {
+        await model.Chapter.destroy({ where: { chapterId: { [Op.in]: chapterIds } }, transaction: t });
+      }
+
+      await comic.destroy({ transaction: t });
+
+      return { message: "Xóa comic thành công" };
+    });
+    },
   };
 };

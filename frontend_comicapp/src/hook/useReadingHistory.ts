@@ -99,14 +99,6 @@ export function useDetailedReadingHistory({
                 headers: { Authorization: `Bearer ${token}` },
               }
             )
-            .then(() => {
-              console.log('SYNC HISTORY →', {
-                comicId,
-                chapterId,
-                chapterNumber,
-                pageNumber: safePage,
-              });
-            })
             .catch((err) => {
               console.error('Lỗi khi đồng bộ lịch sử đọc với server:', err);
             });

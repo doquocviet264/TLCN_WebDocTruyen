@@ -18,9 +18,9 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     hasSeenRules: {
-      type: DataTypes.TINYINT,
+      type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: 0,
+      defaultValue: false,
     },
   }, {
     tableName: 'chatUserChannelStates', 
