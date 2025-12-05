@@ -16,7 +16,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       type: {
-        type: DataTypes.ENUM("comment", "chapter"),
+        type: DataTypes.ENUM("comment", "chapter", "post"),
         allowNull: false,
       },
       userId: {

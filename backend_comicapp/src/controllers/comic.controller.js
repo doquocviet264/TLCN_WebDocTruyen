@@ -62,9 +62,19 @@ module.exports = (comicService) => ({
   getComicsForAdmin: asyncHandler(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 30;
-    const { comics, meta } = await comicService.getComicsForAdmin({ page, limit });
+    const q = (req.query.q || "").toString();
+    const status = (req.query.status || "all").toString();
+
+    const { comics, meta } = await comicService.getComicsForAdmin({
+      page,
+      limit,
+      q,
+      status,
+    });
+
     return ok(res, { data: comics, meta });
   }),
+
 
   getComicByIdForAdmin: asyncHandler(async (req, res) => {
     const data = await comicService.getComicByIdForAdmin({ id: req.params.id });

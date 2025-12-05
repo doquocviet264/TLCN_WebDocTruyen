@@ -1,9 +1,10 @@
 // app/services/rating.service.js
 const AppError = require("../utils/AppError");
-
+const userQuestRepo = require("../repositories/user-quest.repo");
+const createUpdateQuestService = require("./update-quest.service");
 module.exports = ({ model, repos }) => {
   const { comicRepo, comicRatingRepo } = repos;
-
+  const { updateQuestProgress } = createUpdateQuestService({ model, userQuestRepo });
   return {
     // GET /ratings/:comicId/user
     async getUserRating({ comicId, userId }) {
@@ -32,6 +33,14 @@ module.exports = ({ model, repos }) => {
 
       if (!created) {
         await comicRatingRepo.updateById(row.ratingId, { score }, { model });
+      }
+      try {
+        await updateQuestProgress({
+          userId,
+          category: "rating",
+        });
+      } catch (err) {
+        console.error("updateQuestProgress error:", err);
       }
 
       return { message: "Đánh giá thành công", rating: score };

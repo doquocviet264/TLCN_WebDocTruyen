@@ -41,7 +41,8 @@ module.exports = (commentService) => ({
   }),
 
   getRecentComments: asyncHandler(async (req, res) => {
-    const data = await commentService.getRecentComments();
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const data = await commentService.getRecentComments({ limit });
     return ok(res, { data });
   }),
 

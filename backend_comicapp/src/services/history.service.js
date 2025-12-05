@@ -1,8 +1,7 @@
 // app/services/history.service.js
 const AppError = require("../utils/AppError");
-const { updateQuestProgress } = require("./update-quest.service.js"); // đổi path nếu file bạn đặt tên khác
-
 module.exports = ({ sequelize, model, readingHistoryRepo, chapterRepo }) => {
+
   return {
     // POST /history/update
     async updateReadingHistory({ userId, comicId, chapterId, pageNumber }) {
@@ -30,8 +29,6 @@ module.exports = ({ sequelize, model, readingHistoryRepo, chapterRepo }) => {
           { model}
         );
       }
-
-      try { await updateQuestProgress(userId, "reading"); } catch (_) {}
       return { message: "Cập nhật lịch sử đọc thành công" };
     },
 

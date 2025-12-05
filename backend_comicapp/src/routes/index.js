@@ -20,4 +20,5 @@ router.use("/groups", require("./group.routes"));
 router.use("/applications", require("./application.routes"));
 router.use("/translator", require("./translator.routes"));
 router.use("/reviews", require("./review.routes"));
+router.use("/payments", require("./payment.routes"));
 module.exports = router;

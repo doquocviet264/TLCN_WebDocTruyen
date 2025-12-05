@@ -1,13 +1,15 @@
 // app/services/user.service.js
 const AppError = require("../utils/AppError");
 const cloudinary = require("../config/cloudinary"); 
-
+const userQuestRepo = require("../repositories/user-quest.repo");
+const createUpdateQuestService = require("./update-quest.service");
 module.exports = ({ sequelize, model, repos }) => {
   const {
     userRepo, walletRepo, transactionRepo, checkinRepo,
     readingHistoryRepo, commentRepo, comicFollowRepo, comicRepo, chapterRepo
   } = repos;
   const { Sequelize } = model;
+  const { updateQuestProgress } = createUpdateQuestService({ model, userQuestRepo });
 
   return {
     // GET /user/profile
@@ -90,8 +92,9 @@ module.exports = ({ sequelize, model, repos }) => {
     // GET /user/gold-details
     async getGoldDetails({ userId }) {
       const wallet = await walletRepo.findOne({ userId }, { model });
-      if (!wallet) throw new AppError("Không tìm thấy ví của người dùng.", 404, "WALLET_NOT_FOUND");
+      if (!wallet) throw new AppError("Không tìm thấy ví người dùng.", 404);
 
+      // Lịch sử giao dịch
       const transactions = await transactionRepo.findAll(
         { walletId: wallet.walletId },
         { model, limit: 20, order: [["transactionDate","DESC"]] }
@@ -99,91 +102,205 @@ module.exports = ({ sequelize, model, repos }) => {
 
       const transactionHistory = transactions.map((tx) => ({
         id: tx.transactionId,
-        description: tx.description || "Giao dịch",
-        amount: tx.type === "debit" ? -Math.abs(tx.amount) : Math.abs(tx.amount),
+        description: tx.description,
+        amount: tx.type === "debit" ? -tx.amount : tx.amount,
         date: new Date(tx.transactionDate).toLocaleDateString("vi-VN"),
       }));
 
-      // lấy checkin gần nhất
-      let lastCheckin = await checkinRepo.findLastByUser(userId, { model });
+      // Lấy streak stats
+      const stats = await checkinRepo.findByUser(userId, { model });
 
-      const today = new Date(); today.setHours(0,0,0,0);
+      const dayStreak = stats?.currentStreak || 0;
+      const longestStreak = stats?.longestStreak || 0;   // ⭐ THÊM
+      const lastDate = stats?.lastCheckinDate || null;
 
-      // Nếu đã day=7 và không phải hôm nay → reset
-      if (lastCheckin && lastCheckin.day === 7) {
-        const d = new Date(lastCheckin.createdAt); d.setHours(0,0,0,0);
-        if (d.getTime() !== today.getTime()) {
-          await checkinRepo.destroy({ userId }, { model });
-          lastCheckin = null;
-        }
-      }
+      const todayStr = new Date().toLocaleDateString("sv-SE");
+      const todayChecked = lastDate === todayStr;
+
+      // Build UI 7 ô
+      const CYCLE = 7;
+      let filled = dayStreak % CYCLE;
+      if (filled === 0 && dayStreak > 0) filled = CYCLE;
+
+      let todayIndex = todayChecked ? filled : filled + 1;
+      if (todayIndex > CYCLE) todayIndex = 1;
 
       const dailyCheckin = [];
-      let lastDay = 0;
-      let lastDate = null;
-
-      if (lastCheckin) {
-        lastDay = lastCheckin.day;
-        lastDate = new Date(lastCheckin.createdAt); lastDate.setHours(0,0,0,0);
+      for (let i = 1; i <= CYCLE; i++) {
+        dailyCheckin.push({
+          day: i,
+          checked: i <= filled,
+          isToday: i === todayIndex,
+        });
       }
 
-      for (let i = 1; i <= 7; i++) {
-        let checked = i <= lastDay;
-        let isToday = false;
-
-        if (checked && lastDate) {
-          isToday = lastDate.getTime() === today.getTime();
-        } else if (!checked) {
-          if (!lastDate || lastDate.getTime() < today.getTime()) {
-            isToday = i === lastDay + 1;
-          }
-        }
-        dailyCheckin.push({ day: i, checked, isToday });
+      return {
+        transactionHistory,
+        dailyCheckin,
+        dayStreak,
+        longestStreak, 
+      };
+    },
+      // GET /user/transactions?limit=20&offset=0&type=credit
+    async getListTransactions({ userId, limit = 20, offset = 0, type }) {
+      // Tìm ví của user hiện tại
+      const wallet = await walletRepo.findOne({ userId }, { model });
+      if (!wallet) {
+        throw new AppError("Không tìm thấy ví người dùng.", 404, "WALLET_NOT_FOUND");
       }
 
-      return { transactionHistory, dailyCheckin };
+      // Điều kiện where cơ bản
+      const where = { walletId: wallet.walletId };
+
+      // Lọc theo loại giao dịch nếu hợp lệ
+      const allowedTypes = ["credit", "debit", "topup"];
+      if (type && allowedTypes.includes(type)) {
+        where.type = type;
+      }
+
+      // Lấy danh sách + tổng count để FE biết còn nữa không
+      const [rows, total] = await Promise.all([
+        transactionRepo.findAll(where, {
+          model,
+          limit,
+          offset,
+          order: [["transactionDate", "DESC"]],
+        }),
+        model.Transaction.count({ where })
+      ]);
+
+      const items = rows.map((tx) => ({
+        id: tx.transactionId,
+        type: tx.type,
+        status: tx.status,
+        description: tx.description,
+        amount: tx.type === "debit" ? -tx.amount : tx.amount,
+        rawAmount: tx.amount, 
+        dateISO:
+          tx.transactionDate?.toISOString?.() ??
+          new Date(tx.transactionDate).toISOString(),
+      }));
+
+      return {
+        transactions: items,
+        total,
+      };
     },
 
-    // POST /user/checkin
-    async performCheckIn({ userId }) {
-      return await sequelize.transaction(async (t) => {
-        const today = new Date(); today.setHours(0,0,0,0);
 
-        const lastCheckin = await checkinRepo.findLastByUser(userId, { model });
-        if (lastCheckin) {
-          const d = new Date(lastCheckin.createdAt); d.setHours(0,0,0,0);
-          if (d.getTime() === today.getTime()) {
-            throw new AppError("Bạn đã điểm danh hôm nay rồi.", 400, "ALREADY_CHECKED");
-          }
-        }
 
-        const wallet = await walletRepo.findOne({ userId }, { model, transaction: t });
-        if (!wallet) throw new AppError("Không tìm thấy ví.", 404, "WALLET_NOT_FOUND");
 
-        const nextDay = lastCheckin ? (lastCheckin.day === 7 ? 1 : lastCheckin.day + 1) : 1;
-        const reward = 10;
+  // POST /user/checkin
+  async performCheckIn({ userId }) {
+    return await sequelize.transaction(async (t) => {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const todayStr = today.toLocaleDateString("sv-SE"); // YYYY-MM-DD
 
-        await checkinRepo.create({ userId, day: nextDay }, { model, transaction: t });
+      // Lấy streak stats của user
+      let stats = await checkinRepo.findByUser(userId, { model, transaction: t });
 
-        const newBalance = (wallet.balance || 0) + reward;
-        await walletRepo.updateById(wallet.walletId, { balance: newBalance }, { model, transaction: t });
+      if (!stats) {
+        stats = await checkinRepo.create(
+          {
+            userId,
+            currentStreak: 0,
+            longestStreak: 0,
+            lastCheckinDate: null,
+          },
+          { model, transaction: t }
+        );
+      }
 
-        await transactionRepo.create({
+      // Đã checkin hôm nay
+      if (stats.lastCheckinDate === todayStr) {
+        throw new AppError("Bạn đã điểm danh hôm nay rồi.", 400, "ALREADY_CHECKED");
+      }
+
+      // Tính streak mới
+      let newCurrentStreak = 1;
+
+      if (stats.lastCheckinDate) {
+        const last = new Date(stats.lastCheckinDate + "T00:00:00");
+        const diff = (today.getTime() - last.getTime()) / (1000*60*60*24);
+
+        if (diff === 1) newCurrentStreak = stats.currentStreak + 1; 
+        else newCurrentStreak = 1; // đứt streak
+      }
+
+      const newLongestStreak = Math.max(stats.longestStreak, newCurrentStreak);
+
+      // Cộng vàng
+      const wallet = await walletRepo.findOne(
+        { userId },
+        { model, transaction: t }
+      );
+      if (!wallet) throw new AppError("Không tìm thấy ví.", 404);
+
+      const reward = 10;
+      const newBalance = wallet.balance + reward;
+
+      await walletRepo.updateById(
+        wallet.walletId,
+        { balance: newBalance },
+        { model, transaction: t }
+      );
+
+      await transactionRepo.create(
+        {
           walletId: wallet.walletId,
           amount: reward,
-          description: `Điểm danh hàng ngày - Ngày ${nextDay}`,
+          description: `Điểm danh hàng ngày - Chuỗi ${newCurrentStreak} ngày`,
           status: "success",
           type: "credit",
-        }, { model, transaction: t });
+        },
+        { model, transaction: t }
+      );
 
-        const dailyCheckin = [];
-        for (let i = 1; i <= 7; i++) {
-          dailyCheckin.push({ day: i, checked: i <= nextDay, isToday: i === nextDay });
-        }
+      // Update streak stats
+      await checkinRepo.updateByUser(
+        userId,
+        {
+          currentStreak: newCurrentStreak,
+          longestStreak: newLongestStreak,
+          lastCheckinDate: todayStr,
+        },
+        { model, transaction: t }
+      );
 
-        return { message: "Điểm danh thành công!", newBalance, dailyCheckin };
-      });
-    },
+      // Build UI 7 ngày
+      const CYCLE = 7;
+      let filled = newCurrentStreak % CYCLE;
+      if (filled === 0) filled = CYCLE;
+
+      const dailyCheckin = [];
+      for (let i = 1; i <= CYCLE; i++) {
+        dailyCheckin.push({
+          day: i,
+          checked: i <= filled,
+          isToday: i === filled,
+        });
+      }
+      try {
+        await updateQuestProgress({
+          userId,
+          category: "checkin",
+        });
+      } catch (err) {
+        console.error("updateQuestProgress error:", err);
+      }
+      return {
+        message: "Điểm danh thành công!",
+        newBalance,
+        dailyCheckin,
+        dayStreak: newCurrentStreak,
+        longestStreak: newLongestStreak,
+      };
+    });
+  },
+
+
+
 
     // GET /user/activity
 async getUserActivity({ userId }) {

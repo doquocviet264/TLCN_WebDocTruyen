@@ -3,7 +3,7 @@ const AppError = require("../utils/AppError");
 
 module.exports = ({ model, repos }) => {
   const { reportRepo } = repos;
-  const allowedTypes = new Set(["comment", "chapter"]);
+  const allowedTypes = new Set(["comment", "chapter", "post"]);
 
   async function enrichReportTarget(report, { model }) {
     // Gắn thêm info target (comment/chapter) giống code cũ của bạn
@@ -18,6 +18,19 @@ module.exports = ({ model, repos }) => {
       const target = await model.Chapter.findByPk(report.targetId, {
         attributes: ["title", "chapterNumber"],
         include: [{ model: model.Comic, attributes: ["title"] }],
+      });
+      return { ...report.toJSON(), target };
+    }
+    if (report.type === "post" && report.targetId) {
+      const target = await model.Post.findByPk(report.targetId, {
+        attributes: ["postId", "title", "content", "createdAt"],
+        include: [
+          {
+            model: model.User,
+            as: "author", // <-- DÙNG ĐÚNG alias TRONG MODEL
+            attributes: ["userId", "username", "avatar"],
+          },
+        ],
       });
       return { ...report.toJSON(), target };
     }
@@ -40,6 +53,11 @@ module.exports = ({ model, repos }) => {
       } else if (type === "chapter") {
         const exists = await model.Chapter.findByPk(targetId);
         if (!exists) throw new AppError("Chương không tồn tại", 404, "CHAPTER_NOT_FOUND");
+      } else if (type === "post") {
+        // ĐỔI TÊN MODEL cho đúng với project của bạn:
+        // Nếu model là CommunityPost / Post / PostCommunity thì sửa lại
+        const exists = await model.Post.findByPk(targetId);
+        if (!exists) throw new AppError("Bài viết không tồn tại", 404, "POST_NOT_FOUND");
       }
 
       const report = await reportRepo.create(

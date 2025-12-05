@@ -34,12 +34,12 @@ import Application from "./pages/admin/ApplicationManagementPage";
 import ReviewEditor from "./components/admin/comics/ReviewEditor";
 
 import GroupLayout from "./layouts/GroupLayout";
-import GroupManagementPage from "./pages/Group/GroupManagementPage";
-import GroupSettingsPage from "./pages/Group/GroupSettingsPage";
-import GroupChatPage from "./pages/Group/GroupChatPage";
-import GroupMembersPage from "./pages/Group/GroupMembersPage";
-import GroupComicManagePage from "./pages/Group/GroupManageComics";
-import GroupComicManageDetailPage from "./pages/Group/GroupManageChapter";
+import GroupManagementPage from "./pages/group/GroupManagementPage";
+import GroupSettingsPage from "./pages/group/GroupSettingsPage";
+import GroupChatPage from "./pages/group/GroupChatPage";
+import GroupMembersPage from "./pages/group/GroupMembersPage";
+import GroupComicManagePage from "./pages/group/GroupManageComics";
+import GroupComicManageDetailPage from "./pages/group/GroupManageChapter";
 function App() {
   return (
     <AuthProvider>

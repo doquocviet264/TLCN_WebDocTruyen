@@ -2,10 +2,11 @@
 const chapter = require("../models/chapter.js");
 const AppError = require("../utils/AppError");
 const { parsePaging, buildMeta } = require('../utils/paging'); 
-const { updateQuestProgress } = require("./update-quest.service.js");
+const createUpdateQuestService = require("./update-quest.service");
 const makeNotificationService = require("./notification.service.js")
 module.exports = ({ sequelize, model, repos }) => {
-  const { commentRepo, commentLikeRepo, notificationRepo, reportRepo } = repos;
+  const { commentRepo, commentLikeRepo, notificationRepo, reportRepo, userQuestRepo } = repos;
+  const { updateQuestProgress } = createUpdateQuestService({ model, userQuestRepo });
   const notificationService = makeNotificationService({ model, notificationRepo, deliveryRepo: repos.deliveryRepo });
   return {
     // GET /comments/comic/:slug?page=
@@ -104,7 +105,14 @@ module.exports = ({ sequelize, model, repos }) => {
       });
 
       // Nâng tiến độ quest
-      try { await updateQuestProgress(userId, "comment"); } catch (_) {}
+      try {
+        await updateQuestProgress({
+          userId,
+          category: "comment",
+        });
+      } catch (err) {
+        console.error("updateQuestProgress error:", err);
+      }
 
       return result.get({ plain: true });
     },

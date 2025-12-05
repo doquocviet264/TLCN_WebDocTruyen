@@ -2,12 +2,14 @@
 const AppError = require("../utils/AppError");
 const cloudinary = require("../config/cloudinary"); 
  const makeNotificationService = require("./notification.service.js")
+ const userQuestRepo = require("../repositories/user-quest.repo");
+const createUpdateQuestService = require("./update-quest.service");
 module.exports = ({
   sequelize,
   model,
   repos, // { comicRepo, chapterRepo, chapterImageRepo, chapterUnlockRepo, walletRepo, transactionRepo }
 }) => {
-  
+  const { updateQuestProgress } = createUpdateQuestService({ model, userQuestRepo });
   return {
     // GET /:slug/:chapterNumber
     async getChapterDetails({ slug, chapterNumber }) {
@@ -55,7 +57,14 @@ module.exports = ({
       );
       const prev = currentIndex > 0 ? chapters[currentIndex - 1] : null;
       const next = currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null;
-
+      try {
+        await updateQuestProgress({
+          userId,
+          category: "comment",
+        });
+      } catch (err) {
+        console.error("updateQuestProgress error:", err);
+      }
       return {
         id: chapter.chapterId,
         comicId: comic.comicId,
@@ -118,7 +127,7 @@ module.exports = ({
           amount,
           status: "success",
           type: "debit",
-          description: `Mở khóa chương ${chapter.chapterNumber} của truyệnId ${chapter.comicId}`,
+          description: `Mở khóa chương ${chapter.chapterNumber} của truyện ${comicTitle}`,
         }, { model, transaction: t });
       });
 
@@ -184,7 +193,7 @@ module.exports = ({
       const exists = await repos.chapterRepo.findOne({ comicId, chapterNumber }, { model });
       if (exists) throw new AppError(`Chương ${chapterNumber} đã tồn tại`, 400, "CHAPTER_EXISTS");
       if (!title) title = 'Chương ' + chapterNumber;
-      return await sequelize.transaction(async (t) => {
+      const chapter = await sequelize.transaction(async (t) => {
         const chapter = await repos.chapterRepo.create(
           {
             comicId,
@@ -220,8 +229,20 @@ module.exports = ({
           { model, order: [["pageNumber", "ASC"]] }
         );
 
-        return { message: "Thêm chương thành công", chapter: { ...chapter.toJSON(), images: imgs } };
+        return { ...chapter.toJSON(), images: imgs };
       });
+      const comic = await repos.comicRepo.findOne({where : {comicId}, include: "Followers"}, {model});
+      if(comic && comic.Followers && comic.Followers.length > 0) {
+        const notificationService = makeNotificationService({model, notificationRepo: repos.notificationRepo, deliveryRepo: repos.deliveryRepo});
+        await notificationService.createAndNotify({
+          category: 'follow',
+          title: 'Chương mới',
+          message: `Truyện ${comic.title} đã có chương mới: ${chapter.title}`,
+          userIds: comic.Followers.map(f => f.userId),
+          extra: {comicId: comic.comicId, chapterId: chapter.chapterId}
+        })
+      }
+      return { message: "Thêm chương thành công", chapter };
     },
     // app/services/chapter.service.js (thêm vào trong return {...})
     async deleteChapter({ id }) {

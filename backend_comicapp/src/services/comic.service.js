@@ -1,12 +1,14 @@
 const AppError = require("../utils/AppError");
 const cloudinary = require("../config/cloudinary");
 const { slugify } = require("transliteration");
-
+const userQuestRepo = require("../repositories/user-quest.repo");
+const createUpdateQuestService = require("./update-quest.service");
 module.exports = ({ sequelize, model, repos }) => {
   const { Op, fn, col, literal } = model.Sequelize;
   const {
     comicRepo, chapterRepo, genreRepo, altNameRepo, userRepo,
   } = repos;
+  const { updateQuestProgress } = createUpdateQuestService({ model, userQuestRepo });
 
   // ---- helpers ----
   async function generateUniqueSlug(title) {
@@ -126,6 +128,14 @@ module.exports = ({ sequelize, model, repos }) => {
         return { message: "Hủy thích thành công", isFavorite: false };
       } else {
         await comic.addLiker(userId);
+        try {
+          await updateQuestProgress({
+            userId,
+            category: "favorite",
+          });
+        } catch (err) {
+          console.error("updateQuestProgress error:", err);
+        }
         return { message: "Thích thành công", isFavorite: true };
       }
     },
@@ -353,10 +363,29 @@ module.exports = ({ sequelize, model, repos }) => {
     },
 
     // ========== Admin ==========
-    async getComicsForAdmin({ page = 1, limit = 30 }) {
+    async getComicsForAdmin({ page = 1, limit = 30, q = "", status = "all" }) {
       const offset = (page - 1) * limit;
+
+      const where = {};
+
+      // Tìm theo tên / tác giả / slug
+      if (q && q.trim()) {
+        const keyword = `%${q.trim()}%`;
+        where[Op.or] = [
+          { title: { [Op.like]: keyword } },
+          { author: { [Op.like]: keyword } },
+          { slug:   { [Op.like]: keyword } },
+        ];
+      }
+
+      // Lọc trạng thái (FE đang send "In Progress" | "Completed" | "On Hold" hoặc "all")
+      if (status && status !== "all") {
+        where.status = status;
+      }
+
       const { count, rows } = await comicRepo.findAndCountAll(
         {
+          where,
           include: [
             { model: model.Genre, attributes: ["name"], through: { attributes: [] } },
             { model: model.AlternateName, as: "AlternateNames", attributes: ["name"] },
@@ -369,7 +398,9 @@ module.exports = ({ sequelize, model, repos }) => {
             ],
           },
           order: [["updatedAt","DESC"]],
-          limit, offset, distinct: true,
+          limit,
+          offset,
+          distinct: true,
         },
         { model }
       );
@@ -386,8 +417,17 @@ module.exports = ({ sequelize, model, repos }) => {
         updatedAt: c.updatedAt, createdAt: c.createdAt,
       }));
 
-      return { comics, meta: { page, limit, total: count, totalPages: Math.ceil(count/limit) } };
+      return {
+        comics,
+        meta: {
+          page,
+          limit,
+          total: count,
+          totalPages: Math.ceil(count / limit),
+        },
+      };
     },
+
 
     async getComicByIdForAdmin({ id }) {
       const comic = await comicRepo.findByPk(

@@ -68,10 +68,15 @@ export default function ManageComics() {
   const fetchComics = async (page = 1) => {
     try {
       setLoading(true);
-      const res = await axios.get<ApiComicsResponse>(
-        `${API_URL}/admin/comics`,
-        { params: { page }, headers: { ...authHeader() } }
-      );
+      const res = await axios.get<ApiComicsResponse>(`${API_URL}/admin/comics`, {
+        params: {
+          page,
+          q: searchTerm || "",
+          status: statusFilter || "all",
+        },
+        headers: { ...authHeader() },
+      });
+
       setComics(res.data.data);
       setTotalPages(res.data.meta.totalPages);
       setCurrentPage(res.data.meta.page);
@@ -84,10 +89,15 @@ export default function ManageComics() {
     }
   };
 
+
   useEffect(() => {
     fetchComics(currentPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
+  const handleApplyFilter = () => {
+    setCurrentPage(1);
+    fetchComics(1);
+  };
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
@@ -109,13 +119,6 @@ export default function ManageComics() {
     }
   };
 
-  const filteredComics = comics.filter((comic) => {
-    const matchesSearch =
-      comic.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      comic.author.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || comic.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
 
   if (loading) {
     return <p className="p-4">Đang tải dữ liệu...</p>;
@@ -135,36 +138,47 @@ export default function ManageComics() {
         />
       </div>
 
-      {/* Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle>Bộ lọc và Tìm kiếm</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Tìm kiếm theo tên truyện hoặc tác giả..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Trạng thái" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                <SelectItem value="In Progress">Đang tiến hành</SelectItem>
-                <SelectItem value="Completed">Hoàn thành</SelectItem>
-                <SelectItem value="On Hold">Tạm ngưng</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+  <CardHeader>
+    <CardTitle>Bộ lọc và Tìm kiếm</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="flex flex-col gap-4 md:flex-row md:items-center">
+      <div className="relative flex-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          placeholder="Tìm kiếm theo tên truyện hoặc tác giả..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <SelectTrigger className="w-full md:w-[180px]">
+          <SelectValue placeholder="Trạng thái" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tất cả trạng thái</SelectItem>
+          <SelectItem value="In Progress">Đang tiến hành</SelectItem>
+          <SelectItem value="Completed">Hoàn thành</SelectItem>
+          <SelectItem value="On Hold">Tạm ngưng</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {/* Nút áp dụng bộ lọc (gửi request lên BE) */}
+      <Button
+        className="w-full md:w-auto"
+        variant="default"
+        onClick={handleApplyFilter}
+        disabled={loading}
+      >
+        Áp dụng
+      </Button>
+    </div>
+  </CardContent>
+</Card>
+
 
       {/* Comics Table */}
       <Card>
@@ -189,8 +203,8 @@ export default function ManageComics() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredComics.map((comic) => (
-                  <TableRow key={comic.id}>
+                {comics.map((comic) => (
+                    <TableRow key={comic.id}>
                     <TableCell>
                       <img
                         src={comic.image || "/placeholder.svg"}

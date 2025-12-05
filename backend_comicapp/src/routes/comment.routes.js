@@ -6,7 +6,7 @@ const commentRepo = require("../repositories/comment.repo");
 const commentLikeRepo = require("../repositories/comment-like.repo");
 const notificationRepo = require("../repositories/notification.repo");
 const reportRepo = require("../repositories/report.repo");
-
+const userQuestRepo = require("../repositories/user-quest.repo");
 const commentServiceFactory = require("../services/comment.service");
 const commentControllerFactory = require("../controllers/comment.controller");
 
@@ -27,7 +27,7 @@ const router = express.Router();
 const commentService = commentServiceFactory({
   sequelize,
   model: models,
-  repos: { commentRepo, commentLikeRepo, notificationRepo, reportRepo },
+  repos: { commentRepo, commentLikeRepo, notificationRepo, reportRepo, userQuestRepo },
 });
 const commentController = commentControllerFactory(commentService);
 

@@ -1,8 +1,3 @@
-// === Giả lập DB ===
-const wallets = { 1: { userId: 1, balance: 100000 } };
-const momoOrders = {};  // lưu order tạm
-
-const userId = 1; // giả lập user đăng nhập
 
 // === API tạo payment ===
 app.post("/payment", async (req, res) => {
@@ -92,12 +87,3 @@ app.post("/momo-ipn", async (req, res) => {
   }
 });
 
-// === API lấy số dư ví ===
-app.get("/user/wallet", (req, res) => {
-  const wallet = wallets[userId];
-  res.json({ balance: wallet.balance });
-});
-// Xử lý lỗi 404
-app.use((req, res) => {
-  res.status(404).json({ message: 'Không tìm thấy endpoint' });
-});

@@ -1,12 +1,43 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { clampText, cn, timeAgo } from "./utils";
-import { Heart, MessageCircle, Bookmark, Share2, Star, X } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  Bookmark,
+  Share2,
+  Star,
+  X,
+  MoreHorizontal,
+  Loader2,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "react-toastify";
 import { Link } from "react-router-dom";
 import PostComments from "./PostComments";
@@ -59,11 +90,11 @@ export type PostCardData = {
   comicId?: number | null;
   comic?: PostComic | null;
 
-  images: PostImage[];           // { imageUrl }
+  images: PostImage[]; // { imageUrl }
   genres: Array<{ genreId?: number; name?: string }> | [];
 
   likesCount: number;
-  hasLiked?: boolean;            // BE có thể không trả, để optional
+  hasLiked?: boolean; // BE có thể không trả, để optional
   commentsCount?: number;
   createdAt: string;
   updatedAt: string;
@@ -89,6 +120,15 @@ function authConfig() {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   } as const;
 }
+
+/** Loại báo cáo cho post (giống comment) */
+const POST_REPORT_TYPE_LABELS: Record<string, string> = {
+  spam: "Spam / Quảng cáo",
+  inappropriate: "Nội dung phản cảm",
+  fake: "Thông tin sai lệch",
+  harassment: "Quấy rối / xúc phạm",
+  other: "Khác",
+};
 
 /** Toggle like: BE nên trả lại { hasLiked, likesCount } hoặc full post */
 async function toggleLikeApi(postId: number, hasLiked: boolean) {
@@ -158,6 +198,12 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [viewer, setViewer] = useState<{ open: boolean; index: number }>({ open: false, index: 0 });
 
+  // Report dialog state
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportType, setReportType] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
   // Fallback currentUser nếu không truyền từ cha
   const [me, setMe] = useState<UserLite>(() => {
     if (currentUser) return currentUser;
@@ -226,10 +272,63 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
       ? "grid-cols-2"
       : "grid-cols-1";
 
+  /** ====== Report Dialog handlers ====== */
+  const handleReportOpenChange = (open: boolean) => {
+    if (!open) {
+      // reset state khi đóng
+      setReportType("");
+      setReportDetails("");
+    }
+    setIsReportOpen(open);
+  };
+
+  const handleSubmitReport = async () => {
+    if (!reportType) {
+      toast.error("Vui lòng chọn loại báo cáo.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.error("Bạn cần đăng nhập để gửi báo cáo.");
+      return;
+    }
+
+    try {
+      setIsSubmittingReport(true);
+
+      const title = `Báo cáo bài viết #${localPost.postId} - ${
+        POST_REPORT_TYPE_LABELS[reportType] || "Báo cáo"
+      }`;
+
+      await axios.post(
+        `${API_BASE}/reports`,
+        {
+          title,
+          description: reportDetails?.trim() || "(Không có mô tả bổ sung)",
+          type: "post",
+          targetId: localPost.postId,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success("Cảm ơn bạn đã gửi báo cáo!");
+      handleReportOpenChange(false);
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Gửi báo cáo thất bại, vui lòng thử lại.";
+      toast.error(msg);
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   return (
     <>
       <Card className="shadow-xl overflow-hidden">
-        {/* Header: avatar + tên + thời gian + loại + tiêu đề (ngang hàng) */}
+        {/* Header: avatar + tên + thời gian + loại + tiêu đề + dấu 3 chấm */}
         <CardHeader className="p-4 flex items-center gap-3">
           <Avatar className="h-10 w-10 shrink-0">
             <AvatarImage src={localPost.author.avatar ?? undefined} alt={localPost.author.username} />
@@ -254,6 +353,23 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
               <span className="font-semibold truncate">• {localPost.title}</span>
             )}
           </div>
+
+          {/* Dấu 3 chấm + menu Báo cáo */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setIsReportOpen(true)}
+              >
+                Báo cáo bài viết
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </CardHeader>
 
         {/* Content */}
@@ -282,7 +398,9 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
                     />
                   ))}
                 </span>
-                <span className="text-xs opacity-70">({(Math.round(starScore * 100) / 100).toFixed(2)}/5)</span>
+                <span className="text-xs opacity-70">
+                  ({(Math.round(starScore * 100) / 100).toFixed(2)}/5)
+                </span>
               </div>
 
               {/* Bảng 5 tiêu chí */}
@@ -323,7 +441,9 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
                   <span className="w-20 opacity-80">{RATING_LABEL.ratingCreativity}</span>
                   <div className="flex-1 flex items-center gap-2">
                     <RatingStars value={localPost.ratingCreativity ?? 0} />
-                    <span className="text-xs opacity-70 w-8 text-right">{localPost.ratingCreativity ?? 0}/5</span>
+                    <span className="text-xs opacity-70 w-8 text-right">
+                      {localPost.ratingCreativity ?? 0}/5
+                    </span>
                   </div>
                 </div>
               </div>
@@ -376,16 +496,6 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
             <MessageCircle className="h-4 w-4" />
             {localPost.commentsCount ?? 0}
           </Button>
-
-          <Button variant="outline" size="sm" className="gap-1">
-            <Bookmark className="h-4 w-4" />
-            Lưu
-          </Button>
-
-          <Button variant="outline" size="sm" className="gap-1">
-            <Share2 className="h-4 w-4" />
-            Chia sẻ
-          </Button>
         </CardFooter>
 
         {/* Comments Section */}
@@ -399,6 +509,60 @@ export function PostCard({ post, onPostUpdate, currentUser }: Props) {
           </div>
         )}
       </Card>
+
+      {/* Report Post Dialog */}
+      <Dialog open={isReportOpen} onOpenChange={handleReportOpenChange}>
+        <DialogContent className="sm:max-w-[425px] bg-muted text-foreground">
+          <DialogHeader>
+            <DialogTitle>Báo cáo bài viết</DialogTitle>
+            <DialogDescription>
+              Nếu bạn thấy bài viết này có vấn đề, hãy chọn loại và mô tả chi tiết để chúng tôi kiểm tra.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="post-report-type" className="text-right text-sm font-medium">
+                Loại báo cáo
+              </label>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger id="post-report-type" className="col-span-3">
+                  <SelectValue placeholder="Chọn loại..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="spam">Spam / Quảng cáo</SelectItem>
+                  <SelectItem value="inappropriate">Nội dung phản cảm</SelectItem>
+                  <SelectItem value="fake">Thông tin sai lệch</SelectItem>
+                  <SelectItem value="harassment">Quấy rối / xúc phạm</SelectItem>
+                  <SelectItem value="other">Khác</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="post-report-details" className="text-right text-sm font-medium">
+                Chi tiết
+              </label>
+              <Textarea
+                id="post-report-details"
+                placeholder="Mô tả thêm về vấn đề bạn gặp phải..."
+                className="col-span-3 min-h-[100px]"
+                value={reportDetails}
+                onChange={(e) => setReportDetails(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Hủy
+              </Button>
+            </DialogClose>
+            <Button type="submit" onClick={handleSubmitReport} disabled={isSubmittingReport}>
+              {isSubmittingReport && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmittingReport ? "Đang gửi..." : "Gửi báo cáo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Image Viewer Modal */}
       <ImageViewer
@@ -439,7 +603,11 @@ function ImageViewer({
         onInteractOutside={onClose}
       >
         <div className="relative">
-          <img src={images[index]} alt="viewer" className="w-full max-h-[80vh] object-contain rounded-xl" />
+          <img
+            src={images[index]}
+            alt="viewer"
+            className="w-full max-h-[80vh] object-contain rounded-xl"
+          />
           <Button
             variant="secondary"
             size="icon"

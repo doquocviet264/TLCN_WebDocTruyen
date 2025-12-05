@@ -18,7 +18,7 @@ interface Report {
   reportId: number;
   title: string;
   description: string;
-  type: "comment" | "chapter";
+  type: "comment" | "chapter" | "post";
   userId: number;
   targetId: number;
   isResolved: boolean;
@@ -208,8 +208,15 @@ export default function ReportManagement() {
                     </TableCell>
                     <TableCell>{r.title}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{r.type === "comment" ? "Bình luận" : "Chương"}</Badge>
+                      <Badge variant="outline">
+                        {r.type === "comment"
+                          ? "Bình luận"
+                          : r.type === "chapter"
+                          ? "Chương"
+                          : "Bài viết"}
+                      </Badge>
                     </TableCell>
+
                     <TableCell>
                       {r.type === "comment" && r.target ? (
                         <div className="max-w-[300px]">
@@ -217,20 +224,49 @@ export default function ReportManagement() {
                           <p className="text-sm truncate">"{r.target.content}"</p>
                           <p className="text-xs text-muted-foreground">
                             Bởi {r.target.User?.username || "Ẩn danh"} •{" "}
-                            {r.target?.createdAt? new Date(r.target.createdAt).toLocaleString("vi-VN"): "Không rõ thời gian"}
+                            {r.target?.createdAt
+                              ? new Date(r.target.createdAt).toLocaleString("vi-VN")
+                              : "Không rõ thời gian"}
                           </p>
                         </div>
                       ) : r.type === "chapter" && r.target ? (
                         <div>
-                          <p className="text-sm italic text-muted-foreground">Chương: {r.target.title}</p>
+                          <p className="text-sm italic text-muted-foreground">
+                            Chương: {r.target.title}
+                          </p>
                           <p className="text-sm font-medium">
                             {r.target.Comic?.title}
                           </p>
+                        </div>
+                      ) : r.type === "post" && r.target ? (
+                        <div className="max-w-[320px]">
+                          <p className="text-sm italic text-muted-foreground">
+                            Bài viết:
+                          </p>
+                          {/* title của post nếu BE trả về */}
+                          {r.target.title && (
+                            <p className="text-sm font-medium truncate">
+                              {r.target.title}
+                            </p>
+                          )}
+                          {/* content rút gọn */}
+                          {r.target.content && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              “{r.target.content}”
+                            </p>
+                          )}
+                          {/* tên tác giả nếu có */}
+                          {r.target.User?.username && (
+                            <p className="text-xs text-muted-foreground">
+                              Bởi {r.target.User.username}
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground">Không có dữ liệu</p>
                       )}
                     </TableCell>
+
 
 
                     <TableCell>

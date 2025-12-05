@@ -284,6 +284,58 @@ router.post("/checkin", userController.performCheckIn);
 
 /**
  * @openapi
+ * /user/transactions:
+ *   get:
+ *     tags: [Users]
+ *     summary: Lấy danh sách giao dịch ví (phân trang, lọc theo loại)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, example: 20 }
+ *         description: Số giao dịch mỗi lần load
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer, example: 0 }
+ *         description: Vị trí bắt đầu (phục vụ lazy load / "Xem thêm")
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [credit, debit, topup]
+ *         description: Lọc theo loại giao dịch (tùy chọn)
+ *     responses:
+ *       200:
+ *         description: Danh sách giao dịch của người dùng hiện tại
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/OkEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id: { type: integer }
+ *                           type: { type: string }
+ *                           status: { type: string }
+ *                           description: { type: string }
+ *                           amount: { type: integer }
+ *                           rawAmount: { type: integer }
+ *                           dateISO: { type: string, format: date-time }
+ *                     meta:
+ *                       type: object
+ *                       properties:
+ *                         limit: { type: integer }
+ *                         offset: { type: integer }
+ *                         total: { type: integer }
+ */
+router.get("/transactions", userController.getListTransactions);
+/**
+ * @openapi
  * /user/activity:
  *   get:
  *     tags: [Users]

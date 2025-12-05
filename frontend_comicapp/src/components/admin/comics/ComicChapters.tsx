@@ -141,7 +141,7 @@ export default function ComicChapters({
 
           {selectedChapter && (
             <div className="max-h-[80vh] overflow-y-auto">
-              <ReviewEditor comicId={comicId} chapter={selectedChapter} />
+              <ReviewEditor comicId={comicId} chapter={selectedChapter} onClose={() => setOpenReview(false)} />
             </div>
           )}
         </DialogContent>

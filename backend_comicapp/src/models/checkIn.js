@@ -1,24 +1,35 @@
 module.exports = (sequelize, DataTypes) => {
-  const Checkin = sequelize.define('Checkin', {
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
+  const CheckIn = sequelize.define('CheckIn', {
+    checkinId: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
     },
-    userId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
-    day: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
+      userId: {
+        type: DataTypes.INTEGER,
+        unique: true,
+        allowNull: false,
+      },
+      currentStreak: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      longestStreak: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      lastCheckinDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
   }, {
-    tableName: 'Checkins',
+    tableName: 'CheckIns',
     timestamps: true,
-    createAt: 'createdAt',
-    updatedAt: false,
+    createdAt: false,
+    updatedAt: true,
   });
 
-  return Checkin;
+  return CheckIn;
 };

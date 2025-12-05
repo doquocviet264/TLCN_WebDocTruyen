@@ -15,12 +15,17 @@ interface Comic {
   slug: string;
 }
 
+interface Chapter {
+  title: string;
+}
+
 interface Comment {
   id: number;
   content: string;
   createdAt: string;
   User: User;
   Comic: Comic;
+  Chapter?: Chapter; // Make Chapter optional as it might not always be present
 }
 interface RecentCommentsResponse {
   success: boolean;
@@ -95,6 +100,9 @@ export default function RecentComments() {
               <Link to={`/truyen-tranh/${comment.Comic.slug}`} className="text-base group">
                 <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
                   {comment.Comic.title}
+                  {comment.Chapter && (
+                    <span className="text-sm text-muted-foreground"> - {comment.Chapter.title}</span>
+                  )}
                 </span>
               </Link>
               

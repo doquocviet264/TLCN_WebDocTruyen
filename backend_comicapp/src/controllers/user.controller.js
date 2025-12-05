@@ -37,10 +37,36 @@ module.exports = (userService) => ({
     return ok(res, { data });
   }),
 
+
   performCheckIn: asyncHandler(async (req, res) => {
     const data = await userService.performCheckIn({ userId: req.user.userId });
     return ok(res, { data });
   }),
+    getListTransactions: asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+
+    const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 20));
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+
+    const type = req.query.type;
+
+    const { transactions, total } = await userService.getListTransactions({
+      userId,
+      limit,
+      offset,
+      type,
+    });
+
+    return ok(res, {
+      data: transactions,
+      meta: {
+        limit,
+        offset,
+        total,
+      },
+    });
+  }),
+
 
   getUserActivity: asyncHandler(async (req, res) => {
     const data = await userService.getUserActivity({ userId: req.user.userId });
@@ -54,6 +80,7 @@ module.exports = (userService) => ({
     const data = await userService.getMyComments({ userId, limit, offset });
     return ok(res, { data, meta: { limit, offset } });
   }),
+
 
   // Admin
   getAllUsers: asyncHandler(async (req, res) => {
