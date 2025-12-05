@@ -6,7 +6,7 @@ import ReadingHistory from '../components/HomePage/ReadingHistory';
 import MonthlyRankings from '../components/HomePage/MonthlyRankings';
 import RecentComments from '../components/HomePage/RecentComments';
 import ComicRow from '../components/HomePage/ComicRow';
-import MangaSlider from '../components/Comic/mangaslider';
+import MangaSlider from '../components/HomePage/mangaslider';
 interface GenreSection {
   genre: { name: string; slug: string };
   comics: any[];
