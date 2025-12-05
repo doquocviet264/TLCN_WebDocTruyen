@@ -122,8 +122,19 @@ module.exports = ({ sequelize, model, repos }) => {
     },
 
     // GET /comments/recent
-    async getRecentComments() {
-      const comments = await commentRepo.findRecent({ limit: 10 }, { model });
+    async getRecentComments({ limit = 10 }) {
+      const { col } = sequelize;
+      const comments = await model.Comment.findAll({
+        limit,
+        where: { parentId: null },
+        order: [["createdAt", "DESC"]],
+        attributes: [[col("commentId"), "id"], "content", "createdAt", "chapterId"],
+        include: [
+          { model: model.User, attributes: ["username", "avatar"] },
+          { model: model.Comic, attributes: ["title", "slug"] },
+          { model: model.Chapter, attributes: ["title"], required: false },
+        ],
+      });
       return comments;
     },
 
