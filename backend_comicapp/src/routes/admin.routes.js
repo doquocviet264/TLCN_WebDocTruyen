@@ -20,7 +20,8 @@ const commentLikeRepo = require("../repositories/comment-like.repo");
 const notificationRepo = require("../repositories/notification.repo");
 const deliveryRepo = require("../repositories/notification-delivery.repo");
 
-
+const dashboardServiceFactory = require("../services/dashboard.service");
+const dashboardControllerFactory = require("../controllers/dashboard.controller");
 const genreServiceFactory = require("../services/genre.service");
 const genreControllerFactory = require("../controllers/genre.controller");
 const commentServiceFactory = require("../services/comment.service");
@@ -47,7 +48,11 @@ const {
   createGenreValidator, updateGenreValidator,
   createAdminNotificationValidator,
 } = require("../validators/admin.validators");
-
+const dashboardService = dashboardServiceFactory({
+  sequelize,
+  model: models,
+});
+const dashboardController = dashboardControllerFactory(dashboardService);
 const chapterService = chapterServiceFactory({
   sequelize,
   model: models,
@@ -727,5 +732,182 @@ router.get("/notifications", protect, isAdmin, pagingQuery, validateRequest, not
  */
 
 router.post("/notifications", protect, isAdmin, createAdminNotificationValidator, notificationController.createAdminNotification);
+/* Dashboard */
+/**
+ * @openapi
+ * /admin/dashboard/overview:
+ *   get:
+ *     tags: [Dashboard-Admin]
+ *     summary: Thống kê tổng quan cho trang Dashboard
+ *     description: |
+ *       Trả về các số liệu tổng quan:
+ *       - Tổng user, user mới
+ *       - Tổng comic, comic mới
+ *       - View, vàng trong hệ thống, vàng nạp/tiêu
+ *       - Report, community (post/comment)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date, example: "2025-12-01" }
+ *         description: Ngày bắt đầu (YYYY-MM-DD). Nếu không truyền sẽ mặc định -7 ngày.
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date, example: "2025-12-06" }
+ *         description: Ngày kết thúc (YYYY-MM-DD). Nếu không truyền sẽ là hôm nay.
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ */
+router.get("/dashboard/overview", protect, isAdmin, dashboardController.getOverview);
+
+/**
+ * @openapi
+ * /admin/dashboard/users:
+ *   get:
+ *     tags: [Dashboard-Admin]
+ *     summary: Biểu đồ người dùng mới theo ngày
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ */
+router.get("/dashboard/users", protect, isAdmin, dashboardController.getUserChart);
+
+/**
+ * @openapi
+ * /admin/dashboard/views:
+ *   get:
+ *     tags: [Dashboard-Admin]
+ *     summary: Biểu đồ lượt đọc truyện theo ngày
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ */
+router.get("/dashboard/views", protect, isAdmin, dashboardController.getViewChart);
+
+/**
+ * @openapi
+ * /admin/dashboard/top-comics:
+ *   get:
+ *     tags: [Dashboard-Admin]
+ *     summary: Top truyện theo lượt đọc trong khoảng thời gian
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, example: 5 }
+ *         description: Số truyện muốn lấy, mặc định 5
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ */
+router.get("/dashboard/top-comics", protect, isAdmin, dashboardController.getTopComics);
+
+/**
+ * @openapi
+ * /admin/dashboard/top-users:
+ *   get:
+ *     tags: [Dashboard-Admin]
+ *     summary: Top người dùng hoạt động trong khoảng thời gian
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, example: 5 }
+ *         description: Số user muốn lấy, mặc định 5
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ */
+router.get("/dashboard/top-users", protect, isAdmin, dashboardController.getTopUsers);
+
+/**
+ * @openapi
+ * /admin/dashboard/reports:
+ *   get:
+ *     tags: [Dashboard-Admin]
+ *     summary: Thống kê báo cáo theo loại & trạng thái
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ */
+router.get("/dashboard/reports", protect, isAdmin, dashboardController.getReportStats);
+
+/**
+ * @openapi
+ * /admin/dashboard/community:
+ *   get:
+ *     tags: [Dashboard-Admin]
+ *     summary: Thống kê hoạt động cộng đồng (post, comment) theo ngày
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OkEnvelope' }
+ */
+router.get("/dashboard/community", protect, isAdmin, dashboardController.getCommunityStats);
 
 module.exports = router;

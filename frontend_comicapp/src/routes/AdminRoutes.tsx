@@ -8,9 +8,10 @@ import Comments from "../pages/admin/ManageComment";
 import Genres from "../pages/admin/ManageGenre";
 import Notifications from "../pages/admin/ManageNotification";
 import Application from "../pages/admin/ApplicationManagementPage";
-
+import Dashboard from "../pages/admin/AdminDashboardPage";
 const AdminRoutes = (
     <Route path="/admin" element={<AdminLayout />}>
+        <Route index element={<Dashboard />} />
         <Route path="comics" element={<Comics />} />
         <Route path="comics/:id" element={<ComicDetail />} />
         <Route path="comics/:id/:chapterId" element={<ComicDetail />} />
