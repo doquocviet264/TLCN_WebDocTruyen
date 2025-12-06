@@ -1,10 +1,10 @@
 import { Route } from "react-router-dom";
 import GroupLayout from "../layouts/GroupLayout";
-import GroupManagementPage from "../pages/Groups/GroupManagementPage";
-import GroupSettingsPage from "../pages/Groups/GroupSettingsPage";
-import GroupChatPage from "../pages/Groups/GroupChatPage";
-import GroupMembersPage from "../pages/Groups/GroupMembersPage";
-import GroupComicManagePage from "../pages/Groups/GroupManageComics";
+import GroupManagementPage from "../pages/group/GroupManagementPage";
+import GroupSettingsPage from "../pages/group/GroupSettingsPage";
+import GroupChatPage from "../pages/group/GroupChatPage";
+import GroupMembersPage from "../pages/group/GroupMembersPage";
+import GroupComicManagePage from "../pages/group/GroupManageComics";
 
 const GroupRoutes = (
     <Route path="/groups/:groupId/manage" element={<GroupLayout />}>
