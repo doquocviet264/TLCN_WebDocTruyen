@@ -263,8 +263,8 @@ db.PostComment = sequelize.define(
   db.Wallet.hasMany(db.Transaction, { foreignKey: "walletId" });
   db.Transaction.belongsTo(db.Wallet, { foreignKey: "walletId" });
 
-  // User <-> CheckIn (1:N)
-  db.User.hasMany(db.CheckIn, { foreignKey: "userId" });
+  // User <-> CheckIn (1:1)
+  db.User.hasOne(db.CheckIn, { foreignKey: "userId" });
   db.CheckIn.belongsTo(db.User, { foreignKey: "userId" });
 
   // User <-> Quest (M:N) + UserQuest back-refs
@@ -373,8 +373,8 @@ db.PostComment = sequelize.define(
     as: "channel",
   });
 
-  // User ↔ TranslationGroup (owner 1:N)
-  db.User.hasMany(db.TranslationGroup, { as: "ownedGroups", foreignKey: "ownerId" });
+  // User ↔ TranslationGroup (owner 1:1)
+  db.User.hasOne(db.TranslationGroup, { as: "ownedGroups", foreignKey: "ownerId" });
   db.TranslationGroup.belongsTo(db.User, { as: "owner", foreignKey: "ownerId" });
 
   // User ↔ TranslationGroup (members M:N)

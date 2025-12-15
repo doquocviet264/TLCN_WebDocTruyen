@@ -6,15 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "react-toastify";
 
-/**
- * Threaded PostComments component (for Community Post)
- * - Root comments are paginated ("Xem thêm bình luận").
- * - Each root comment has a "Hiển thị/Ẩn câu trả lời" toggle that lazily fetches replies.
- * - Matches UX of your CommentSection (main comments + replies + toggle).
- * - Flexible mapping layer tolerates differing BE field names.
- */
-
-// ===== Types =====
 export type User = { id: number; name: string; avatarUrl?: string };
 export type CommentItem = {
   id: number;
@@ -31,8 +22,7 @@ export type CommentItem = {
 // Generic API envelope your BE usually returns
 export type ApiOk<T> = { success: true; data: T; meta?: any };
 
-// ===== Config & helpers =====
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3000/api";
+const API_BASE = import.meta.env.VITE_API_URL
 const authConfig = () => {
   const token = localStorage.getItem("token");
   return { headers: token ? { Authorization: `Bearer ${token}` } : undefined } as const;
@@ -50,9 +40,7 @@ const timeAgo = (iso: string) => {
   return `${d}d`;
 };
 
-// Map any BE shape -> CommentItem used by FE
-// NOTE: We intentionally IGNORE embedded replies to avoid auto-rendering nested threads.
-// Replies will be fetched lazily only after clicking the toggle.
+
 function mapToCommentItem(raw: any): CommentItem {
   const id = Number(raw?.id ?? raw?.commentId ?? raw?.postCommentId);
   const parentIdRaw = raw?.parentId ?? raw?.parent_id ?? raw?.parentCommentId ?? raw?.parent_comment_id ?? null;

@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MessageSquare, Clock } from "lucide-react"; // Import thêm icon để giao diện sinh động hơn
 
 interface User {
   username: string;
@@ -25,21 +26,26 @@ interface Comment {
   createdAt: string;
   User: User;
   Comic: Comic;
-  Chapter?: Chapter; // Make Chapter optional as it might not always be present
+  Chapter?: Chapter;
 }
+
 interface RecentCommentsResponse {
   success: boolean;
   data: Comment[];
   meta: any;
 }
-// Component Skeleton cho mỗi bình luận
+
+// Skeleton tinh chỉnh lại cho khớp layout mới
 const CommentSkeleton = () => (
-  <div className="space-y-2">
-    <Skeleton className="h-5 w-3/4" />
-    <Skeleton className="h-4 w-full" />
-    <div className="flex items-center space-x-2">
-      <Skeleton className="h-6 w-6 rounded-full" />
-      <Skeleton className="h-4 w-20" />
+  <div className="py-4 first:pt-0 border-b border-border/40 last:border-0">
+    <Skeleton className="h-5 w-2/3 mb-2" />
+    <Skeleton className="h-4 w-full mb-3" />
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-2">
+        <Skeleton className="h-8 w-8 rounded-full" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+      <Skeleton className="h-3 w-16" />
     </div>
   </div>
 );
@@ -52,7 +58,9 @@ export default function RecentComments() {
     const fetchRecentComments = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<RecentCommentsResponse>(`${import.meta.env.VITE_API_URL}/comments/recent`);
+        const response = await axios.get<RecentCommentsResponse>(
+          `${import.meta.env.VITE_API_URL}/comments/recent`
+        );
         setComments(response.data.data);
       } catch (error) {
         console.error("Failed to fetch recent comments:", error);
@@ -67,7 +75,7 @@ export default function RecentComments() {
     const date = new Date(dateString);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     let interval = seconds / 31536000;
     if (interval > 1) return `${Math.floor(interval)} năm trước`;
     interval = seconds / 2592000;
@@ -80,54 +88,85 @@ export default function RecentComments() {
     if (interval > 1) return `${Math.floor(interval)} phút trước`;
     return `Vừa xong`;
   };
-  
+
   const getInitials = (name: string) => {
-      return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-  }
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase();
+  };
 
   return (
-    <Card className="p-4 bg-card/50 backdrop-blur-sm border-border/50">
-      {/* Tiêu đề */}
-      <h3 className="text-xl font-montserrat font-bold mb-4">Bình luận mới nhất</h3>
+    <Card className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-border/40 shadow-lg">
+      <CardHeader className="pb-3 border-b border-border/40">
+        <CardTitle className="text-xl font-bold flex items-center gap-2">
+          <MessageSquare className="w-6 h-6" /> {/* Icon điểm nhấn */}
+          <span>Bình luận gần đây</span>
+        </CardTitle>
+      </CardHeader>
 
-      <div className="space-y-5">
-        {loading ? (
-          Array.from({ length: 5 }).map((_, i) => <CommentSkeleton key={i} />)
-        ) : (
-          comments.map((comment) => (
-            <div key={comment.id} className="space-y-2">
-              {/* Link đến truyện */}
-              <Link to={`/truyen-tranh/${comment.Comic.slug}`} className="text-base group">
-                <span className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                  {comment.Comic.title}
-                  {comment.Chapter && (
-                    <span className="text-sm text-muted-foreground"> - {comment.Chapter.title}</span>
-                  )}
-                </span>
-              </Link>
-              
-              {/* Nội dung bình luận */}
-              <p className="text-base text-muted-foreground leading-relaxed line-clamp-2">
-                {comment.content}
-              </p>
+      <CardContent className="pt-4">
+        <div className="flex flex-col">
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => <CommentSkeleton key={i} />)
+          ) : (
+            comments.map((comment) => (
+              <div
+                key={comment.id}
+                className="group py-4 first:pt-0 border-b border-dashed border-border/50 last:border-0 last:pb-0 relative"
+              >
+                {/* 1. Tên Truyện + Chapter (Màu Cam/Vàng như ảnh) */}
+                <div className="mb-2">
+                  <Link
+                    to={`/truyen-tranh/${comment.Comic.slug}`}
+                    className="block font-bold text-base transition-colors line-clamp-1"
+                  >
+                    {comment.Comic.title}
+                    {comment.Chapter && (
+                      <span className="text-muted-foreground font-normal ml-1">
+                        - {comment.Chapter.title}
+                      </span>
+                    )}
+                  </Link>
+                </div>
 
-              {/* Thông tin người dùng */}
-              <div className="flex items-center space-x-2">
-                <Avatar className="h-7 w-7">
-                  <AvatarImage src={comment.User.avatar || "/placeholder.svg"} alt={comment.User.username} />
-                  <AvatarFallback className="text-sm">
-                    {getInitials(comment.User.username)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm font-medium">{comment.User.username}</span>
-                <span className="text-sm text-muted-foreground">•</span>
-                <span className="text-sm text-muted-foreground">{timeAgo(comment.createdAt)}</span>
+                {/* 2. Nội dung bình luận (Màu sáng, dễ đọc) */}
+                <p className="text-sm text-foreground/90 leading-relaxed line-clamp-2 mb-3 pl-1 border-l-2 border-transparent transition-all duration-300">
+                  {comment.content}
+                </p>
+
+                {/* 3. Footer: User bên trái, Thời gian bên phải */}
+                <div className="flex items-center justify-between mt-auto">
+                  {/* User Info */}
+                  <div className="flex items-center space-x-2.5">
+                    <Avatar className="h-8 w-8 border border-border/50">
+                      <AvatarImage
+                        src={comment.User.avatar || "/placeholder.svg"}
+                        alt={comment.User.username}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="text-xs font-semibold bg-muted text-muted-foreground">
+                        {getInitials(comment.User.username)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-semibold text-foreground/80 transition-colors">
+                      {comment.User.username}
+                    </span>
+                  </div>
+
+                  {/* Time Info */}
+                  <div className="flex items-center text-xs text-muted-foreground italic">
+                    <Clock className="w-3 h-3 mr-1" />
+                    {timeAgo(comment.createdAt)}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      </CardContent>
     </Card>
-
   );
 }

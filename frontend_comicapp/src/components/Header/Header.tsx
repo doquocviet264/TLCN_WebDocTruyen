@@ -1,9 +1,9 @@
-import { useState, useContext, useRef, useEffect, FormEvent } from "react";
+import { useState, useContext, useRef, useEffect, FormEvent } from "react"; 
 import { type Socket } from "socket.io-client";
 import { io } from "socket.io-client";
 import iconWeb from "@/assets/images/icon_web.png";
 import { Search, Sun, Moon, User, LogIn, UserPlus, Menu, X, Bell } from "lucide-react";
-import Navbar from './Navbar';
+import Navbar from "./Navbar";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input"; 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -13,6 +13,7 @@ import { AuthContext } from "@/context/AuthContext";
 import SearchResults from "./SearchResults";
 import { toast } from "react-toastify";
 import BecomeTranslatorDialog from "../dialogs/BecomeTranslatorDialog";
+import MyGroupsDialog from "../dialogs/MyGroupsDialog";
 
 interface Notification {
   notificationId: number;
@@ -21,6 +22,7 @@ interface Notification {
   createdAt: string;
   isRead: boolean;
 }
+
 interface ApiNotificationResponse {
   success: boolean;
   data: {
@@ -44,6 +46,7 @@ interface SearchData {
 export default function Header() {
   const { isLoggedIn, logout, user } = useContext(AuthContext);
   const [showBecomeTranslatorDialog, setShowBecomeTranslatorDialog] = useState(false);
+  const [showMyGroupsDialog, setShowMyGroupsDialog] = useState(false);
 
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
@@ -58,9 +61,12 @@ export default function Header() {
   const socketRef = useRef<Socket | null>(null);
 
   const navigate = useNavigate();
+
+  // THEME
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
   const toggleTheme = () => {
     setDarkMode(!darkMode);
     document.documentElement.classList.toggle("dark", !darkMode);
@@ -96,23 +102,22 @@ export default function Header() {
     (async () => {
       try {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           signal: ctrl.signal,
         });
-        const json:ApiNotificationResponse = await res.json();
-        // API envelope: { success: true, data: [...] }
+        const json: ApiNotificationResponse = await res.json();
         if (res.ok && json?.success) {
           const flatData = json.data.map((item) => ({
-              ...item.Notification,
-              isRead: item.isRead,
-            }));
+            ...item.Notification,
+            isRead: item.isRead,
+          }));
           setNotifications(flatData);
         } else {
           setNotifications([]);
         }
       } catch (err) {
-        if ((err as any).name !== 'AbortError') {
-          console.error('Lỗi khi lấy thông báo:', err);
+        if ((err as any).name !== "AbortError") {
+          console.error("Lỗi khi lấy thông báo:", err);
         }
       }
     })();
@@ -127,11 +132,11 @@ export default function Header() {
     // nếu đã có socket, tránh connect lại
     if (socketRef.current?.connected) return;
 
-    const token = localStorage.getItem('token');
-    const s = io("http://localhost:3000", {
+    const token = localStorage.getItem("token");
+    const s = io(`${import.meta.env.VITE_SOCKET_URL}`, {
       autoConnect: false,
       transports: ["websocket"],
-      auth: { token }, // server có thể đọc từ socket.handshake.auth.token
+      auth: { token },
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
@@ -146,10 +151,8 @@ export default function Header() {
       console.error("socket connect_error:", err?.message || err);
     });
 
-    // Lắng nghe sự kiện push từ server khi có thông báo mới
     s.on("notification:new", (n: Notification) => {
-      setNotifications(prev => [n, ...prev]);
-      // optional toast
+      setNotifications((prev) => [n, ...prev]);
       toast.info(`${n.title}: ${n.message}`, { autoClose: 3000 });
     });
 
@@ -167,38 +170,38 @@ export default function Header() {
   const markAsRead = async (id: number) => {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications/${id}/read`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        method: "PUT",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       const json = await res.json();
       if (res.ok && json?.success) {
-        setNotifications(prev =>
-          prev.map(n => (n.notificationId === id ? { ...n, isRead: true } : n))
+        setNotifications((prev) =>
+          prev.map((n) => (n.notificationId === id ? { ...n, isRead: true } : n))
         );
       }
     } catch (err) {
-      console.error('Lỗi đánh dấu thông báo đã đọc:', err);
+      console.error("Lỗi đánh dấu thông báo đã đọc:", err);
     }
   };
 
   const markAllAsRead = async () => {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications/read-all`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        method: "PUT",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       const json = await res.json();
       if (res.ok && json?.success) {
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       }
     } catch (err) {
-      console.error('Lỗi đánh dấu tất cả thông báo đã đọc:', err);
+      console.error("Lỗi đánh dấu tất cả thông báo đã đọc:", err);
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  //SEARCH (fetch + debounce)
+  // SEARCH (fetch + debounce)
   const performSearch = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -210,13 +213,14 @@ export default function Header() {
     try {
       const params = new URLSearchParams({
         q: query.trim(),
-        page: '1',
-        limit: '10',
+        page: "1",
+        limit: "10",
       });
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/comics/search?${params.toString()}`);
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/comics/search?${params.toString()}`
+      );
       const json = await res.json();
-      // API envelope: { success: true, data: { comics, ... } }
       if (res.ok && json?.success) {
         const payload = json.data as SearchData;
         setSearchResults(payload?.comics || []);
@@ -226,7 +230,7 @@ export default function Header() {
         setShowResults(false);
       }
     } catch (error) {
-      console.error('Lỗi tìm kiếm:', error);
+      console.error("Lỗi tìm kiếm:", error);
       setSearchResults([]);
       setShowResults(false);
     } finally {
@@ -284,15 +288,17 @@ export default function Header() {
         {/* Logo */}
         <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
           <img src={iconWeb} alt="TruyệnVerse Logo" className="h-8 w-8" />
-          <span className="font-montserrat font-black text-xl text-foreground hidden sm:block">TruyệnVerse</span>
+          <span className="font-montserrat font-black text-xl text-foreground hidden sm:block">
+            TruyệnVerse
+          </span>
         </Link>
 
         {/* Search Desktop */}
         <div className="hidden md:flex flex-1 max-w-md mx-8 relative" ref={searchRef}>
           <form onSubmit={handleSearchSubmit} className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input 
-              placeholder="Tìm kiếm truyện tranh..." 
+            <Input
+              placeholder="Tìm kiếm truyện tranh..."
               className="pl-10 pr-10 bg-card/50 backdrop-blur-sm border-border/50"
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
@@ -316,7 +322,7 @@ export default function Header() {
 
           {/* Kết quả tìm kiếm */}
           {showResults && (
-            <SearchResults 
+            <SearchResults
               results={searchResults}
               isLoading={isLoading}
               searchQuery={searchQuery}
@@ -328,10 +334,10 @@ export default function Header() {
 
         {/* Right section */}
         <div className="flex items-center space-x-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-9 w-9 md:hidden" 
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 md:hidden"
             onClick={() => setShowMobileSearch(!showMobileSearch)}
           >
             <Search className="h-4 w-4" />
@@ -353,9 +359,9 @@ export default function Header() {
               <div className="flex items-center justify-between p-2 border-b">
                 <h3 className="font-semibold">Thông báo</h3>
                 {unreadCount > 0 && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={markAllAsRead}
                     className="text-xs h-auto p-1"
                   >
@@ -363,16 +369,18 @@ export default function Header() {
                   </Button>
                 )}
               </div>
-              
+
               {notifications.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground">
                   Không có thông báo
                 </div>
               ) : (
                 notifications.map((notification) => (
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     key={notification.notificationId}
-                    className={`p-3 border-b last:border-b-0 cursor-pointer ${!notification.isRead ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
+                    className={`p-3 border-b last:border-b-0 cursor-pointer ${
+                      !notification.isRead ? "bg-blue-50 dark:bg-blue-950/20" : ""
+                    }`}
                     onClick={() => markAsRead(notification.notificationId)}
                   >
                     <div className="flex flex-col space-y-1">
@@ -382,8 +390,12 @@ export default function Header() {
                           <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-1"></span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{notification.message}</p>
-                      <span className="text-xs text-muted-foreground">{timeAgo(notification.createdAt)}</span>
+                      <p className="text-xs text-muted-foreground">
+                        {notification.message}
+                      </p>
+                      <span className="text-xs text-muted-foreground">
+                        {timeAgo(notification.createdAt)}
+                      </span>
                     </div>
                   </DropdownMenuItem>
                 ))
@@ -391,8 +403,8 @@ export default function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9 relative">
-            {darkMode ? <Moon className="h-4 w-4" />   : <Sun className="h-4 w-4" />}
+          <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9">
+            {darkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
 
           {isLoggedIn ? (
@@ -406,11 +418,28 @@ export default function Header() {
                 <DropdownMenuItem asChild>
                   <Link to="/profile">Tài khoản</Link>
                 </DropdownMenuItem>
-                {isLoggedIn && user?.role === 'user' && (
+
+                {/* user thường: hiện nút ứng tuyển dịch giả */}
+                {user?.role === "user" && (
                   <DropdownMenuItem onClick={() => setShowBecomeTranslatorDialog(true)}>
                     Trở thành dịch giả
                   </DropdownMenuItem>
                 )}
+
+                {/* translator: hiện nút mở dialog nhóm của tôi */}
+                {user?.role === "translator" && (
+                  <DropdownMenuItem onClick={() => setShowMyGroupsDialog(true)}>
+                    Nhóm dịch của tôi
+                  </DropdownMenuItem>
+                )}
+
+                {/* admin: nút đi đến trang /admin */}
+                {user?.role === "admin" && (
+                  <DropdownMenuItem onClick={() => navigate("/admin")}>
+                    Trang quản lý Admin
+                  </DropdownMenuItem>
+                )}
+
                 <DropdownMenuItem onClick={logout}>Đăng xuất</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -460,9 +489,9 @@ export default function Header() {
           <div className="container px-4 py-3">
             <form onSubmit={handleSearchSubmit} className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input 
-                placeholder="Tìm kiếm truyện tranh..." 
-                className="pl-10 pr-10 bg-card/50 backdrop-blur-sm border-border/50" 
+              <Input
+                placeholder="Tìm kiếm truyện tranh..."
+                className="pl-10 pr-10 bg-card/50 backdrop-blur-sm border-border/50"
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
@@ -487,7 +516,7 @@ export default function Header() {
             {/* Kết quả tìm kiếm mobile */}
             {showResults && (
               <div className="absolute left-0 right-0 top-full mt-2 z-50">
-                <SearchResults 
+                <SearchResults
                   results={searchResults}
                   isLoading={isLoading}
                   searchQuery={searchQuery}
@@ -500,10 +529,18 @@ export default function Header() {
           </div>
         </div>
       )}
+
       <Navbar />
-      <BecomeTranslatorDialog 
-        open={showBecomeTranslatorDialog} 
-        onOpenChange={setShowBecomeTranslatorDialog} 
+
+      {/* Dialogs */}
+      <BecomeTranslatorDialog
+        open={showBecomeTranslatorDialog}
+        onOpenChange={setShowBecomeTranslatorDialog}
+      />
+
+      <MyGroupsDialog
+        open={showMyGroupsDialog}
+        onOpenChange={setShowMyGroupsDialog}
       />
     </header>
   );

@@ -160,5 +160,61 @@ module.exports = ({ sequelize, model, postRepo, postLikeRepo, postCommentRepo })
 
       return { rows, meta: { page: pageNum, limit: limitNum, total, pages } };
     },
+    async adminListPosts(query) {
+  const {
+    q, type, userId, comicId,
+    page = 1, limit = 20, sort = "new",
+    start, end,
+    reportFilter = "all", // ✅
+  } = query;
+
+  let windowStart = null, windowEnd = null;
+  if (start && end) {
+    windowStart = new Date(start).toISOString().slice(0, 19);
+    windowEnd = new Date(end).toISOString().slice(0, 19);
+  }
+
+  const { rows, count } = await postRepo.adminFindAndCount(
+    {
+      kw: q,
+      type,
+      userId,
+      comicId,
+      page: Number(page) || 1,
+      limit: Number(limit) || 20,
+      sort,
+      windowStart,
+      windowEnd,
+      reportFilter, // ✅
+    },
+    { model }
+  );
+
+  const total = Array.isArray(count) ? count.length : count;
+  const limitNum = Number(limit) || 20;
+  const pageNum = Number(page) || 1;
+  const pages = Math.ceil(total / limitNum);
+
+  return { rows, meta: { page: pageNum, limit: limitNum, total, pages, sort, reportFilter } };
+},
+
+
+async adminDeletePost(postId) {
+  const t = await sequelize.transaction();
+  try {
+    const exist = await postRepo.findById(postId, { model });
+    if (!exist) throw new AppError("Không tìm thấy bài đăng", 404, "NOT_FOUND");
+
+    await postRepo.deleteById(postId, { model, transaction: t });
+
+    await t.commit();
+    return { deleted: true };
+  } catch (e) {
+    await t.rollback();
+    if (e instanceof AppError) throw e;
+    throw new AppError(e.message || "Xóa bài thất bại", 400, "DELETE_POST_FAILED");
+  }
+},
+
   };
 };

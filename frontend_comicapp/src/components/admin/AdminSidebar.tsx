@@ -12,7 +12,7 @@ import {
   Tag,
   Menu,
   X,
-  Bell
+  Bell,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -29,6 +29,7 @@ const sidebarItems = [
   { title: "Người dùng", href: "/admin/users", icon: Users },
   { title: "Thể loại", href: "/admin/genres", icon: Tag },
   { title: "Thông báo", href: "/admin/notifications", icon: Bell },
+  { title: "Bài viết cộng đồng", href: "/admin/community-posts", icon: FileText },
 ];
 
 export default function AdminSidebar({

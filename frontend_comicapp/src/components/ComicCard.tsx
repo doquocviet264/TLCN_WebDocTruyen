@@ -1,6 +1,8 @@
 import type { FC, MouseEvent } from 'react';
-import { X } from 'lucide-react';
+import { X, Clock, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface ComicCardProps {
   imageUrl: string;
@@ -19,18 +21,22 @@ export const ComicCard: FC<ComicCardProps> = ({
   title,
   href,
   continueReadingText,
-  lastChapter,
   continueReadingUrl,
+  lastChapter,
   lastChapterUrl,
   lastReadAt,
   onDelete,
 }) => {
+  
   const handleDeleteClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     onDelete?.();
   };
+
   const timeAgo = (dateString: string) => {
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "";
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
     
@@ -47,61 +53,81 @@ export const ComicCard: FC<ComicCardProps> = ({
     return `Vừa xong`;
   };
 
+  // Xác định link chapter để hiển thị
+  const chapterLink = continueReadingUrl || lastChapterUrl;
+  const chapterText = continueReadingText 
+    ? `Đọc tiếp Chap ${continueReadingText}` 
+    : lastChapter 
+      ? `Chap ${lastChapter}` 
+      : null;
+
   return (
-    <div className="w-full flex flex-col font-sans">
-      <div className="group relative overflow-hidden rounded-lg shadow-lg">
+    <div className="group relative flex flex-col h-full transition-transform duration-300 hover:-translate-y-1">
+      
+      {/* --- POSTER IMAGE --- */}
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-muted shadow-sm group-hover:shadow-lg transition-all border border-border/50">
+        
+        {/* Nút Xóa (Chỉ hiện khi hover) */}
         {onDelete && (
           <Button
-            variant="destructive"
+            variant="ghost"
             size="icon"
-            className="absolute top-2 right-2 z-10 h-7 w-7 rounded-full bg-black/60 text-white shadow-md transition-colors hover:bg-red-500"
+            className="absolute top-2 right-2 z-20 h-7 w-7 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-red-500/80 hover:text-white transition-all opacity-0 group-hover:opacity-100"
             onClick={handleDeleteClick}
-            aria-label={`Xóa truyện ${title}`}
+            aria-label="Xóa"
           >
             <X className="h-4 w-4" />
           </Button>
         )}
 
-        <a href={href} aria-label={`Xem chi tiết truyện ${title}`}>
+        <a href={href} className="block h-full w-full" aria-label={`Xem ${title}`}>
           <img
-            src={imageUrl}
-            alt={`Bìa truyện ${title}`}
-            width={180}
-            height={270}
-            className="aspect-[2/3] w-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-105"
+            src={imageUrl || "/placeholder.svg"}
+            alt={title}
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
           />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+          
+          {/* Gradient Overlay: Luôn hiện nhẹ ở dưới để text dễ đọc */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
 
-          {lastReadAt && (
-            <div className="pointer-events-none absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <div className="absolute bottom-0 left-0 right-0 p-2 text-white text-xs">
-                <div className="font-semibold text-[13px] leading-snug line-clamp-2">{title}</div>
-                <div className="mt-1 opacity-90">Đọc lần cuối: {timeAgo(lastReadAt)}</div>
-              </div>
-            </div>
-          )}
+          {/* Overlay Info (Bottom) */}
+          <div className="absolute bottom-0 left-0 right-0 p-3 text-white z-10">
+             {lastReadAt ? (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-white/90">
+                   <Clock className="w-3 h-3" />
+                   <span>{timeAgo(lastReadAt)}</span>
+                </div>
+             ) : (
+                lastChapter && (
+                   <Badge variant="secondary" className="bg-white/20 hover:bg-primary backdrop-blur-sm border-0 text-xs font-semibold px-2 h-5 text-white">
+                      Chap {lastChapter}
+                   </Badge>
+                )
+             )}
+          </div>
         </a>
       </div>
 
-      <div className="mt-3 flex flex-grow flex-col">
-        <a href={href}>
-          <h3
-            title={title}
-            className="text-base font-semibold line-clamp-2 leading-tight hover:text-primary"
-          >
+      {/* --- CONTENT INFO --- */}
+      <div className="mt-3 flex flex-col flex-1 gap-1">
+        <a href={href} title={title}>
+          <h3 className="text-sm font-bold leading-tight line-clamp-2 text-foreground group-hover:text-primary transition-colors">
             {title}
           </h3>
         </a>
-        <a 
-          href={continueReadingUrl? continueReadingUrl: lastChapterUrl} 
-          className="mt-2 text-sm text-muted-foreground hover:text-primary"
-        >
-          {continueReadingText
-            ? `Đọc tiếp ${continueReadingText} ›`
-            : `Chương ${lastChapter}`}
-        </a>
+
+        {/* Link Chapter phụ bên dưới */}
+        {chapterLink && (
+          <a 
+            href={chapterLink} 
+            className="text-xs text-muted-foreground hover:text-primary mt-auto flex items-center gap-1 transition-colors w-fit"
+          >
+            {continueReadingUrl ? <PlayCircle className="w-3 h-3" /> : null}
+            {chapterText}
+          </a>
+        )}
       </div>
-      
     </div>
   );
 };

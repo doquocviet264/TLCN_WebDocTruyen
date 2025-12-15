@@ -1,15 +1,8 @@
 import React, { useState, useEffect } from "react";
-import {
-  Play,
-  Save,
-  Mic,
-  Loader2,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { Play, Save, Mic, Loader2, Sparkles, X } from "lucide-react";
 import axios from "axios";
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 import { ChapterDTO } from "@/components/admin/dialogs/ChapterFormDialog";
 import ConfirmationDialog from "@/components/dialogs/ConfirmationDialog";
@@ -35,50 +28,51 @@ interface ReviewEditorProps {
   onClose: () => void;
 }
 
-const API_BASE = "http://localhost:3000/api";
-const token = localStorage.getItem("token");
-
 const VOICE_OPTIONS: { id: string; label: string }[] = [
-    { id: "zephyr", label: "Giọng dẫn truyện êm (Zephyr)" },
-    { id: "achernar", label: "Giọng dẫn truyện trầm (Achernar)" },
-    { id: "puck", label: "Nam ấm, tự tin (Puck)" },
-    { id: "fenrir", label: "Nam trầm, bí ẩn (Fenrir)" },
-    { id: "gacrux", label: "Nam trung tính, rõ (Gacrux)" },
-    { id: "kore", label: "Nữ trong trẻo (Kore)" },
-    { id: "laomedeia", label: "Nữ nhẹ nhàng (Laomedeia)" },
-    { id: "pulcherrima", label: "Nữ sáng, rõ (Pulcherrima)" },
-    { id: "rasalgethi", label: "Phản diện trầm (Rasalgethi)" },
-    { id: "sadaltager", label: "Phản diện lạnh lùng (Sadaltager)" },
-    { id: "umbriel", label: "Giọng trung tính (Umbriel)" },
-    { id: "despina", label: "Giọng lạ, khác biệt (Despina)" },
-  ];
-  
-  const DEFAULT_VOICE = "kore";
+  { id: "zephyr", label: "Giọng dẫn truyện êm (Zephyr)" },
+  { id: "achernar", label: "Giọng dẫn truyện trầm (Achernar)" },
+  { id: "puck", label: "Nam ấm, tự tin (Puck)" },
+  { id: "fenrir", label: "Nam trầm, bí ẩn (Fenrir)" },
+  { id: "gacrux", label: "Nam trung tính, rõ (Gacrux)" },
+  { id: "kore", label: "Nữ trong trẻo (Kore)" },
+  { id: "laomedeia", label: "Nữ nhẹ nhàng (Laomedeia)" },
+  { id: "pulcherrima", label: "Nữ sáng, rõ (Pulcherrima)" },
+  { id: "rasalgethi", label: "Phản diện trầm (Rasalgethi)" },
+  { id: "sadaltager", label: "Phản diện lạnh lùng (Sadaltager)" },
+  { id: "umbriel", label: "Giọng trung tính (Umbriel)" },
+  { id: "despina", label: "Giọng lạ, khác biệt (Despina)" },
+];
 
-  const ReviewEditor: React.FC<ReviewEditorProps> = ({ comicId, chapter, onClose }) => {
-    const [scriptData, setScriptData] = useState<PageScript[]>([]);
-    const [voiceId, setVoiceId] = useState<string>(DEFAULT_VOICE);
-    const [isSaving, setIsSaving] = useState(false);
-    const [isPublishing, setIsPublishing] = useState(false);
-    const [isLoadingData, setIsLoadingData] = useState(true);
-    const [isGeneratingAI, setIsGeneratingAI] = useState<Record<number, boolean>>({});
-    const [confirmation, setConfirmation] = useState<{
-      isOpen: boolean;
-      title: string;
-      description: string;
-      onConfirm: () => void;
-    }>({
-      isOpen: false,
-      title: '',
-      description: '',
-      onConfirm: () => {},
-    });
+const DEFAULT_VOICE = "kore";
 
+const ReviewEditor: React.FC<ReviewEditorProps> = ({
+  comicId,
+  chapter,
+  onClose,
+}) => {
+  const [scriptData, setScriptData] = useState<PageScript[]>([]);
+  const [voiceId, setVoiceId] = useState<string>(DEFAULT_VOICE);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isGeneratingAI, setIsGeneratingAI] = useState<Record<number, boolean>>(
+    {}
+  );
+  const [confirmation, setConfirmation] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    onConfirm: () => {},
+  });
+  const token = localStorage.getItem("token");
   const updatePage = (pageIndex: number, patch: Partial<PageScript>) => {
     setScriptData((prev) =>
-      prev.map((p) =>
-        p.pageIndex === pageIndex ? { ...p, ...patch } : p
-      )
+      prev.map((p) => (p.pageIndex === pageIndex ? { ...p, ...patch } : p))
     );
   };
 
@@ -98,9 +92,8 @@ const VOICE_OPTIONS: { id: string; label: string }[] = [
         };
 
         type DraftData = { scriptData: DraftScriptV1 | DraftScriptV2 | null };
-
         const res = await axios.get<ApiOkEnvelope<DraftData>>(
-          `${API_BASE}/reviews/draft/${chapter.id}`,
+          `${import.meta.env.VITE_API_URL}/reviews/draft/${chapter.id}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -180,7 +173,7 @@ const VOICE_OPTIONS: { id: string; label: string }[] = [
       };
 
       const res = await axios.post<ApiOkEnvelope<TTSPreviewData>>(
-        `${API_BASE}/reviews/tts-preview`,
+        `${import.meta.env.VITE_API_URL}/reviews/tts-preview`,
         { text: page.text, voiceId },
         {
           headers: {
@@ -207,13 +200,10 @@ const VOICE_OPTIONS: { id: string; label: string }[] = [
     }
   };
 
-  const handleGenerateAIDialogues = (
-    pageIndex: number,
-    imageUrl: string
-  ) => {
+  const handleGenerateAIDialogues = (pageIndex: number, imageUrl: string) => {
     setConfirmation({
       isOpen: true,
-      title: 'Generate AI Dialogues',
+      title: "Generate AI Dialogues",
       description: `Are you sure you want to generate AI dialogues for page ${pageIndex}? This will replace the current content.`,
       onConfirm: async () => {
         setIsGeneratingAI((prev) => ({ ...prev, [pageIndex]: true }));
@@ -224,7 +214,7 @@ const VOICE_OPTIONS: { id: string; label: string }[] = [
           };
 
           const res = await axios.post<ApiOkEnvelope<AIResponse>>(
-            `${API_BASE}/reviews/generate-dialogues-ai`,
+            `${import.meta.env.VITE_API_URL}/reviews/generate-dialogues-ai`,
             { imageUrl },
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -264,7 +254,7 @@ const VOICE_OPTIONS: { id: string; label: string }[] = [
       };
 
       await axios.post<ApiOkEnvelope<{ message: string }>>(
-        `${API_BASE}/reviews/draft`,
+        `${import.meta.env.VITE_API_URL}/reviews/draft`,
         {
           chapterId: chapter.id,
           scriptData: cleanScript,
@@ -287,13 +277,14 @@ const VOICE_OPTIONS: { id: string; label: string }[] = [
   const handlePublish = () => {
     setConfirmation({
       isOpen: true,
-      title: 'Publish Review',
-      description: 'Are you sure you want to publish the audio review for this chapter?',
+      title: "Publish Review",
+      description:
+        "Are you sure you want to publish the audio review for this chapter?",
       onConfirm: async () => {
         setIsPublishing(true);
         try {
           await axios.post(
-            `${API_BASE}/reviews/publish`,
+            `${import.meta.env.VITE_API_URL}/reviews/publish`,
             { chapterId: chapter.id },
             {
               headers: {
@@ -325,7 +316,9 @@ const VOICE_OPTIONS: { id: string; label: string }[] = [
       <ToastContainer />
       <header className="sticky top-0 z-10 border-b border-border bg-card/80 backdrop-blur-sm px-6 py-4 flex justify-between items-center">
         <div>
-          <h1 className="text-lg font-bold text-card-foreground">Review Editor</h1>
+          <h1 className="text-lg font-bold text-card-foreground">
+            Review Editor
+          </h1>
           <p className="text-xs text-muted-foreground">
             Editing: {chapter.title} (Chapter {chapter.number})
           </p>

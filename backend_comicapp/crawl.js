@@ -197,7 +197,7 @@ async function syncComicsFromPage(page = 1) {
 
 // ===== 6️⃣ Chạy chính =====
 (async () => {
-  const startPage = 21, endPage = 30;
+  const startPage = 1, endPage = 10;
   console.log(`🔥 Bắt đầu đồng bộ ${startPage} → ${endPage}`);
 
   await db.sequelize.authenticate();

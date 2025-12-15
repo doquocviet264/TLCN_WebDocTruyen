@@ -192,6 +192,44 @@ router.post(
   validateRequest,
   groupController.createGroup
 );
+/**
+ * @openapi
+ * /groups/my:
+ *   get:
+ *     tags: [Groups]
+ *     summary: Lấy danh sách các nhóm mà user hiện tại đã tham gia
+ *     description: Dùng cho dialog "Nhóm của tôi" trên FE.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Danh sách nhóm user đã tham gia
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/OkEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           groupId: { type: integer }
+ *                           name: { type: string }
+ *                           avatarUrl:
+ *                             type: string
+ *                             nullable: true
+ *                           role:
+ *                             type: string
+ *                             enum: [leader, member]
+ */
+router.get(
+  "/my",
+  protect,
+  groupController.listMyGroups
+);
 
 /**
  * @openapi

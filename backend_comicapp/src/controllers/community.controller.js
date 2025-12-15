@@ -62,5 +62,15 @@ module.exports = (communityService) => ({
     const { rows, meta } = await communityService.getCommentReplies(commentId, req.query);
     return ok(res, { data: rows, meta });
   }),
+  adminListPosts: asyncHandler(async (req, res) => {
+  const { rows, meta } = await communityService.adminListPosts(req.query);
+  return ok(res, { data: rows, meta });
+}),
+
+adminDeletePost: asyncHandler(async (req, res) => {
+  const data = await communityService.adminDeletePost(req.params.id);
+  return ok(res, { data });
+}),
+
 
 });

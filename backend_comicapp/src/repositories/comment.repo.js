@@ -15,11 +15,11 @@ module.exports = {
           attributes: [],
           where: { slug },
         },
-        { model: model.User, attributes: ["username"] },
+        { model: model.User, attributes: ["username", "avatar"] },
         {
           model: model.Comment,
           as: "replies",
-          include: [{ model: model.User, attributes: ["username"] }],
+          include: [{ model: model.User, attributes: ["username", "avatar"] }],
         },
       ],
       where: { parentId: null },
@@ -34,11 +34,11 @@ module.exports = {
     // Lấy comment gốc (parentId=null) của 1 chapter (kèm user & replies)
     return model.Comment.findAndCountAll({
       include: [
-        { model: model.User, attributes: ["username"] },
+        { model: model.User, attributes: ["username", "avatar"] },
         {
           model: model.Comment,
           as: "replies",
-          include: [{ model: model.User, attributes: ["username"] }],
+          include: [{ model: model.User, attributes: ["username", "avatar"] }],
         },
       ],
       where: { 

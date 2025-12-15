@@ -10,49 +10,75 @@ module.exports = ({ sequelize, model, repos }) => {
   const notificationService = makeNotificationService({ model, notificationRepo, deliveryRepo: repos.deliveryRepo });
   return {
     // GET /comments/comic/:slug?page=
-    async getCommentsByComic({ slug, page = 1, limit = 10, userId = null }) {
-      // dùng helper để chuẩn hóa page/limit/offset
-      const { page: p, limit: l, offset } = parsePaging({ page, limit });
+  async getCommentsByComic({ slug, page = 1, limit = 10, userId = null }) {
+    const { page: p, limit: l, offset } = parsePaging({ page, limit });
 
-      // Lấy danh sách comment gốc + replies
-      const { count, rows } = await commentRepo.findAndCountRootByComicSlug(
-        { slug, limit: l, offset },
-        { model }
-      );
+    const { count, rows } = await commentRepo.findAndCountRootByComicSlug(
+      { slug, limit: l, offset },
+      { model }
+    );
 
-      // Tính số like & isLiked an toàn (không chèn thẳng userId vào literal)
-      // 1) Lấy list commentId trang này
-      const commentIds = rows.map((c) => c.commentId);
+    // Lấy list commentId của root comments
+    const commentIds = rows.map((c) => c.commentId);
 
-      // 2) Đếm likes theo từng commentId
-      const likesMap = new Map();
-      for (const id of commentIds) {
-        const n = await commentLikeRepo.countByComment(id, { model });
-        likesMap.set(id, n);
-      }
+    // Đếm likes cho từng commentId (root)
+    const likesMap = new Map();
+    for (const id of commentIds) {
+      const n = await commentLikeRepo.countByComment(id, { model });
+      likesMap.set(id, n);
+    }
 
-      // 3) Nếu user đăng nhập → lấy danh sách commentId user đã like
-      const likedSet = new Set();
-      if (userId) {
-        const likedRows = await commentLikeRepo.findAllByUser(userId, { model });
-        likedRows.forEach((r) => likedSet.add(r.commentId));
-      }
+    // Lấy danh sách commentId user đã like (có thể bao gồm cả replies nếu bạn muốn)
+    const likedSet = new Set();
+    if (userId) {
+      const likedRows = await commentLikeRepo.findAllByUser(userId, { model });
+      likedRows.forEach((r) => likedSet.add(r.commentId));
+    }
 
-      // Format data
-      const comments = rows.map((c) => {
-        const plain = c.get({ plain: true });
+    const comments = rows.map((c) => {
+      const plain = c.get({ plain: true });
+
+      const user = plain.user || plain.User || null;
+
+      const replies = (plain.replies || []).map((r) => {
+        const ru = r.user || r.User || null;
         return {
-          ...plain,
-          likes: likesMap.get(plain.commentId) || 0,
-          isLiked: userId ? likedSet.has(plain.commentId) : false,
+          commentId: r.commentId,
+          content: r.content,
+          createdAt: r.createdAt,
+          likes: likesMap.get(r.commentId) || 0, // nếu bạn cũng muốn tính likes cho reply thì nên làm thêm map riêng
+          isLiked: userId ? likedSet.has(r.commentId) : false,
+          user: ru
+            ? {
+                username: ru.username,
+                avatar: ru.avatar,
+              }
+            : null,
         };
       });
 
       return {
-        comments,
-        meta: buildMeta({ page: p, limit: l, total: count }),
+        commentId: plain.commentId,
+        content: plain.content,
+        createdAt: plain.createdAt,
+        likes: likesMap.get(plain.commentId) || 0,
+        isLiked: userId ? likedSet.has(plain.commentId) : false,
+        user: user
+          ? {
+              username: user.username,
+              avatar: user.avatar,
+            }
+          : null,
+        replies,
       };
-    },
+    });
+
+    return {
+      comments,
+      meta: buildMeta({ page: p, limit: l, total: count }),
+    };
+  },
+
     // GET /comments/chapter/:chapterId?page=
     async getCommentsByChapter({ chapterId, page = 1, limit = 10, userId = null }) {
       const { page: p, limit: l, offset } = parsePaging({ page, limit });

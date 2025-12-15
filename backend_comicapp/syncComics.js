@@ -1,263 +1,217 @@
-// syncComics.js
 require('dotenv').config();
-
 const axios = require('axios');
 const { Sequelize, DataTypes } = require('sequelize');
+const http = require('http');
+const https = require('https');
 
-// 1) KHỞI TẠO sequelize từ .env
+// ===== 1️⃣ Cấu hình Sequelize =====
 const sequelize = new Sequelize(
   process.env.DB_NAME,
   process.env.DB_USER,
-  process.env.DB_PASSWORD,
+  process.env.DB_PASSWORD || '',
   {
     host: process.env.DB_HOST,
-    port: process.env.DB_PORT,        // nếu có
-    dialect: 'mysql',                 // chỉnh theo DB của bạn
+    port: process.env.DB_PORT,
+    dialect: 'mysql',
     logging: false,
+    pool: { max: 10, min: 0, idle: 10000 },
   }
 );
-
-// 2) GỌI FACTORY để lấy 'db' đã init models + associations
-const initModels = require('./src/models/index'); // <- file bạn gửi
+const initModels = require('./src/models/index');
 const db = initModels(sequelize, DataTypes);
 
-// === CÁC HÀM HỖ TRỢ ===
+// ===== 2️⃣ Axios instance keep-alive =====
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 50 });
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
+const api = axios.create({ httpAgent, httpsAgent, timeout: 15000 });
 
-const mapStatus = (apiStatus) => {
-    switch (apiStatus) {
-        case 'ongoing': return 'In Progress';
-        case 'completed': return 'Completed';
-        default: return 'On Hold';
+// ===== 3️⃣ Hàm tiện ích =====
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const mapStatus = (s) => (s === 'completed' ? 'Completed' : s === 'ongoing' ? 'In Progress' : 'On Hold');
+
+// ===== Cache genre để không findOrCreate trùng =====
+const genreCache = new Map();
+async function findOrCreateGenresFast(categories = [], transaction) {
+  const uniqueNames = [...new Set(categories.map(c => c.name.trim()).filter(Boolean))];
+  const found = [];
+  for (const name of uniqueNames) {
+    if (genreCache.has(name)) {
+      found.push(genreCache.get(name));
+      continue;
     }
-};
+    const [g] = await db.Genre.findOrCreate({
+      where: { name },
+      defaults: { name },
+      transaction,
+    });
+    genreCache.set(name, g);
+    found.push(g);
+  }
+  return found;
+}
 
-const findOrCreateGenres = async (apiCategories) => {
-    const genreInstances = [];
-    for (const category of apiCategories) {
-        const [genre] = await db.Genre.findOrCreate({
-            where: { name: category.name },
-            defaults: { name: category.name }
-        });
-        genreInstances.push(genre);
-    }
-    return genreInstances;
-};
+// ===== Lấy chi tiết truyện =====
+async function getComicDetails(slug) {
+  try {
+    const { data } = await api.get(`https://otruyenapi.com/v1/api/truyen-tranh/${slug}`);
+    return data.status === 'success' && data.data?.item ? data.data.item : null;
+  } catch (err) {
+    console.warn(`⚠️ Lỗi lấy chi tiết [${slug}]: ${err.message}`);
+    return null;
+  }
+}
 
-const getComicDetails = async (slug) => {
-    try {
-        const detailApiUrl = `https://otruyenapi.com/v1/api/truyen-tranh/${slug}`;
-        const response = await axios.get(detailApiUrl);
-        if (response.data.status === 'success' && response.data.data.item) {
-            return response.data.data.item;
-        }
-        return null;
-    } catch (error) {
-        console.warn(`Không thể lấy chi tiết cho slug: ${slug}. Lỗi: ${error.message}`);
-        return null;
-    }
-};
-const syncAlternateNames = async (comicInstance, alternateNames, transaction) => {
-    if (!alternateNames || alternateNames.length === 0) {
-        return; // Bỏ qua nếu không có tên khác
-    }
+// ===== Lấy ảnh của 1 chương =====
+async function getChapterPages(chapterApiUrl) {
+  try {
+    const { data } = await api.get(chapterApiUrl);
+    if (data.status !== 'success' || !data.data?.item) return [];
+    const { domain_cdn, item } = data.data;
+    const { chapter_path, chapter_image } = item;
+    return chapter_image.map(img => ({
+      image_page: img.image_page,
+      image_url: `${domain_cdn}/${chapter_path}/${img.image_file}`,
+    }));
+  } catch (err) {
+    console.warn(`⚠️ Lỗi lấy ảnh chương: ${err.message}`);
+    return [];
+  }
+}
 
-    for (const name of alternateNames) {
-        if (name && name.trim() !== '') { // Chỉ lưu các tên hợp lệ
-            // Tìm hoặc tạo mới để tránh trùng lặp
-            await db.AlternateName.findOrCreate({
-                where: {
-                    comicId: comicInstance.comicId,
-                    name: name.trim(),
-                },
-                transaction,
-            });
-        }
-    }
-};
+// ===== Crawl ảnh cho từng chương =====
+async function syncChaptersForComic(comicInstance, apiChapters, transaction) {
+  if (!apiChapters?.length) return { created: 0, updated: 0, images: 0 };
+  const all = apiChapters.flatMap(s => s.server_data || []);
 
-/**
- * Lấy danh sách URL ảnh của một chương từ API
- */
-const getChapterPages = async (chapterApiUrl) => {
-    try {
-        const response = await axios.get(chapterApiUrl);
-        if (response.data.status === 'success' && response.data.data && response.data.data.item) {
-            const { domain_cdn, item } = response.data.data;
-            const { chapter_path, chapter_image } = item;
-            
-            // Tạo URL đầy đủ cho từng ảnh
-            const imagesWithFullUrl = chapter_image.map(image => ({
-                image_page: image.image_page,
-                image_url: `${domain_cdn}/${chapter_path}/${image.image_file}`
-            }));
-            
-            return imagesWithFullUrl;
-        }
-        return [];
-    } catch (error) {
-        console.warn(`    - ↳ ⚠️ Lỗi khi lấy ảnh chương: ${error.message}`);
-        return [];
-    }
-};
+  let created = 0, updated = 0, images = 0;
 
-/**
- * [CẬP NHẬT] Hàm đồng bộ chương, giờ chỉ crawl URL ảnh
- */
-const syncChaptersForComic = async (comicInstance, apiChapters, transaction) => {
-    if (!apiChapters || apiChapters.length === 0) {
-        return { created: 0, updated: 0, images: 0 };
-    }
-    
-    let createdCount = 0;
-    let updatedCount = 0;
-    let totalImagesSaved = 0;
+  // chạy song song có giới hạn 5 chương/lần
+  const limit = 5;
+  for (let i = 0; i < all.length; i += limit) {
+    const batch = all.slice(i, i + limit);
+    await Promise.all(batch.map(async ch => {
+      const num = parseFloat(ch.chapter_name);
+      if (isNaN(num)) return;
 
-    const allChaptersData = apiChapters.flatMap(server => server.server_data || []);
+      const [chapter, isNew] = await db.Chapter.findOrCreate({
+        where: { comicId: comicInstance.comicId, chapterNumber: num },
+        defaults: {
+          chapterNumber: num,
+          title: ch.chapter_title || `Chương ${ch.chapter_name}`,
+          comicId: comicInstance.comicId,
+        },
+        transaction,
+      });
 
-    for (const chapterData of allChaptersData) {
-        const chapterNumber = parseFloat(chapterData.chapter_name);
-        if (isNaN(chapterNumber)) continue;
+      if (isNew) created++; else updated++;
 
-        const chapterRecord = {
-            chapterNumber,
-            title: chapterData.chapter_title || `Chương ${chapterData.chapter_name}`,
-            comicId: comicInstance.comicId,
+      const hasImage = await db.ChapterImage.findOne({
+        where: { chapterId: chapter.chapterId },
+        attributes: ['chapterId'],
+        transaction,
+      });
+      if (hasImage) return;
+
+      const imgs = await getChapterPages(ch.chapter_api_data);
+      if (imgs.length) {
+        const records = imgs.map(i => ({
+          chapterId: chapter.chapterId,
+          imageUrl: i.image_url,
+          pageNumber: i.image_page,
+        }));
+        await db.ChapterImage.bulkCreate(records, { transaction });
+        images += records.length;
+      }
+    }));
+  }
+
+  return { created, updated, images };
+}
+
+// ===== Đồng bộ Alternate Names =====
+async function syncAlternateNames(comicInstance, names = [], transaction) {
+  const clean = names.map(n => n.trim()).filter(Boolean);
+  for (const name of clean) {
+    await db.AlternateName.findOrCreate({
+      where: { comicId: comicInstance.comicId, name },
+      defaults: { comicId: comicInstance.comicId, name },
+      transaction,
+    });
+  }
+}
+
+// ===== Đồng bộ 1 trang truyện =====
+async function syncComicsFromPage(page = 1) {
+  console.log(`🚀 Crawl trang ${page}...`);
+  const { data } = await api.get(`https://otruyenapi.com/v1/api/danh-sach/dang-phat-hanh?page=${page}`);
+  if (data.status !== 'success' || !data.data?.items) return 0;
+
+  const list = data.data.items;
+  const cdn = data.data.APP_DOMAIN_CDN_IMAGE;
+
+  // crawl song song 3 truyện/lần
+  const limit = 3;
+  for (let i = 0; i < list.length; i += limit) {
+    const batch = list.slice(i, i + limit);
+    await Promise.all(batch.map(async item => {
+      const detail = await getComicDetails(item.slug);
+      if (!detail) return;
+
+      const t = await db.sequelize.transaction();
+      try {
+        const comicData = {
+          title: detail.name,
+          slug: detail.slug,
+          status: mapStatus(detail.status),
+          coverImage: `${cdn}/uploads/comics/${detail.thumb_url}`,
+          author: (detail.author || []).join(', ') || 'Đang cập nhật',
+          description: detail.content || '',
+          updatedAt: new Date(detail.updatedAt),
         };
-        
-        const [chapterInstance, created] = await db.Chapter.findOrCreate({
-            where: { comicId: comicInstance.comicId, chapterNumber },
-            defaults: chapterRecord,
-            transaction
+
+        const [comic, created] = await db.Comic.findOrCreate({
+          where: { slug: comicData.slug },
+          defaults: comicData,
+          transaction: t,
         });
+        if (!created) await comic.update(comicData, { transaction: t });
 
-        if (created) createdCount++;
-        else updatedCount++;
+        const genres = await findOrCreateGenresFast(detail.category || [], t);
+        if (genres.length) await comic.setGenres(genres, { transaction: t });
 
-        // Crawl và lưu URL ảnh cho chương
-        const existingImagesCount = await chapterInstance.countChapterImages({ transaction });
-        if (existingImagesCount === 0) { // Chỉ crawl nếu chương chưa có ảnh
-            console.log(`    - ↳ Đang crawl URL ảnh cho chương ${chapterNumber}...`);
-            const chapterImages = await getChapterPages(chapterData.chapter_api_data);
+        await syncAlternateNames(comic, detail.origin_name, t);
+        const chapterResult = await syncChaptersForComic(comic, detail.chapters, t);
 
-            // Sử dụng bulkCreate để tăng hiệu năng khi insert nhiều ảnh
-            const imageRecords = chapterImages.map(image => ({
-                chapterId: chapterInstance.chapterId,
-                imageUrl: image.image_url,
-                pageNumber: image.image_page,
-            }));
+        await t.commit();
+        console.log(`✅ ${created ? 'Mới' : 'Cập nhật'}: "${comic.title}" | ${chapterResult.created}+${chapterResult.updated} chương, ${chapterResult.images} ảnh`);
+      } catch (err) {
+        await t.rollback();
+        console.error(`❌ Lỗi "${item.name}": ${err.message}`);
+      }
+    }));
+  }
 
-            if (imageRecords.length > 0) {
-                await db.ChapterImage.bulkCreate(imageRecords, { transaction });
-                totalImagesSaved += imageRecords.length;
-            }
-            await new Promise(resolve => setTimeout(resolve, 200)); // Nghỉ nhẹ sau khi crawl 1 chương
-        }
-    }
-    return { created: createdCount, updated: updatedCount, images: totalImagesSaved };
-};
+  console.log(`✅ Hoàn tất trang ${page}.`);
+  return list.length;
+}
 
+// ===== 6️⃣ Chạy chính =====
+(async () => {
+  const startPage = 21, endPage = 25;
+  console.log(`🔥 Bắt đầu đồng bộ ${startPage} → ${endPage}`);
 
-// === HÀM CHÍNH ===
-const syncComicsFromPage = async (page = 1) => {
+  await db.sequelize.authenticate();
+  console.log('✅ Kết nối DB thành công.');
+
+  for (let p = startPage; p <= endPage; p++) {
     try {
-        console.log(`🚀 Bắt đầu lấy danh sách truyện từ trang ${page}...`);
-        const listApiUrl = `https://otruyenapi.com/v1/api/danh-sach/truyen-moi?page=${page}`;
-        const response = await axios.get(listApiUrl);
-        const { data } = response;
-
-        if (data.status !== 'success' || !data.data || !data.data.items) {
-            console.log(`Trang ${page} không có dữ liệu hợp lệ.`);
-            return 0;
-        }
-
-        const comicsFromApi = data.data.items;
-        
-        for (const comicListItem of comicsFromApi) {
-            console.log(`\n--------------------------------------------------`);
-            console.log(`- Đang xử lý truyện: ${comicListItem.name}`);
-            
-            const comicDetail = await getComicDetails(comicListItem.slug);
-            await new Promise(resolve => setTimeout(resolve, 300));
-
-            if (!comicDetail) {
-                console.warn(`- ⚠️ Bỏ qua do không lấy được chi tiết.`);
-                continue;
-            }
-
-            const transaction = await db.sequelize.transaction();
-            try {
-                const comicData = {
-                    title: comicDetail.name,
-                    slug: comicDetail.slug,
-                    status: mapStatus(comicDetail.status),
-                    coverImage: `${data.data.APP_DOMAIN_CDN_IMAGE}/uploads/comics/${comicDetail.thumb_url}`,
-                    author: comicDetail.author.join(', ') || 'Đang cập nhật',
-                    description: comicDetail.content || '',
-                    updatedAt: new Date(comicDetail.updatedAt)
-                };
-
-                const [comicInstance, created] = await db.Comic.findOrCreate({
-                    where: { slug: comicData.slug },
-                    defaults: comicData,
-                    transaction
-                });
-
-                if (!created) {
-                    await comicInstance.update(comicData, { transaction });
-                }
-                
-                if (comicDetail.category && comicDetail.category.length > 0) {
-                    const genreInstances = await findOrCreateGenres(comicDetail.category);
-                    await comicInstance.setGenres(genreInstances, { transaction });
-                }
-
-                await syncAlternateNames(comicInstance, comicDetail.origin_name, transaction);
-
-                const chapterSyncResult = await syncChaptersForComic(comicInstance, comicDetail.chapters, transaction);
-
-                await transaction.commit();
-                console.log(`  - Truyện: ${created ? '🎨 Đã thêm mới' : '🔄 Đã cập nhật'} "${comicInstance.title}"`);
-                console.log(`  - Chương: Thêm mới ${chapterSyncResult.created}, Cập nhật ${chapterSyncResult.updated}.`);
-                if (chapterSyncResult.images > 0) {
-                    console.log(`  - 🏞️  URL Ảnh: Đã lưu ${chapterSyncResult.images} URL mới.`);
-                }
-            } catch (error) {
-                await transaction.rollback();
-                console.error(`  - ❌ Lỗi khi lưu truyện "${comicListItem.name}":`, error.message);
-            }
-        }
-        
-        console.log(`\n✅ Hoàn tất xử lý trang ${page}.`);
-        return comicsFromApi.length;
-
-    } catch (error) {
-        console.error(`❌ Không thể lấy danh sách truyện từ API cho trang ${page}:`, error.message);
-        throw error;
+      await syncComicsFromPage(p);
+    } catch (err) {
+      console.error(`Dừng tại trang ${p}: ${err.message}`);
+      break;
     }
-};
+  }
 
-// === HÀM KHỞI ĐỘNG SCRIPT ===
-const runSync = async () => {
-    const startPage = 3;
-    const endPage = 4; // Ví dụ: lấy 2 trang
-
-    console.log(`🔥 Bắt đầu quá trình đồng bộ từ trang ${startPage} đến ${endPage}.`);
-    
-    await db.sequelize.authenticate();
-    console.log('Kết nối database thành công.');
-
-    for (let i = startPage; i <= endPage; i++) {
-        try {
-            await syncComicsFromPage(i);
-        } catch (error) {
-            console.error(`Dừng quá trình đồng bộ do có lỗi ở trang ${i}.`);
-            break;
-        }
-    }
-
-    console.log('🏁 Quá trình đồng bộ đã kết thúc.');
-};
-
-runSync().catch(error => {
-    console.error("Quá trình đồng bộ gặp lỗi nghiêm trọng:", error);
-});
+  console.log('🏁 Đồng bộ hoàn tất.');
+  process.exit(0);
+})();

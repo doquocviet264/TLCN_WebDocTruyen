@@ -23,7 +23,7 @@ interface User {
   username: string;
   email: string;
   avatar?: string;
-  role: "user" | "admin";
+  role: "user" | "admin" | "translator";
   status: "active" | "suspended" | "deleted";
   isVerified: boolean;
   lastLogin: string | null;
@@ -228,8 +228,20 @@ export default function ManageUsers() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                        {user.role === "admin" ? "Admin" : "User"}
+                      <Badge
+                        variant={
+                          user.role === "admin"
+                            ? "default"
+                            : user.role === "translator"
+                            ? "secondary"
+                            : "outline"
+                        }
+                      >
+                        {user.role === "admin"
+                          ? "Admin"
+                          : user.role === "translator"
+                          ? "Translator"
+                          : "User"}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDate(user.lastLogin)}</TableCell>

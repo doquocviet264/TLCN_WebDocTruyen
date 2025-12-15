@@ -76,7 +76,7 @@ interface ChatError {
 }
 
 // ==== Const ====
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3000/api";
+const API_BASE = import.meta.env.VITE_API_URL
 const BOT_USER_ID = 99;
 
 function authConfig() {

@@ -5,7 +5,6 @@ import { AuthContext } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 import { Send, Hash, Reply, X, Globe2, Users, Lock } from "lucide-react";
 
-// --- Types ---
 type ChannelType = "global" | "room" | "private";
 
 interface Sender {
@@ -52,16 +51,6 @@ interface ChatError {
   error?: any;
 }
 
-// --- Constants ---
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3000/api";
-
-function authConfig() {
-  const token = localStorage.getItem("token");
-  return {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  } as const;
-}
-
 const CommunityChat: React.FC = () => {
   const { isLoggedIn, user } = useContext(AuthContext);
 
@@ -78,7 +67,6 @@ const CommunityChat: React.FC = () => {
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
-  // Rooms (Explore)
   const [showRooms, setShowRooms] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
@@ -87,15 +75,13 @@ const CommunityChat: React.FC = () => {
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const selectedChannelIdRef = useRef<number | null>(null);
-
-  // --- Auto scroll xuống cuối ---
+  const token = localStorage.getItem("token");
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
-  // --- Load messages cho 1 channel ---
   const fetchMessages = async (channelId: number) => {
     if (!channelId) return;
     setLoadingMessages(true);
@@ -103,16 +89,14 @@ const CommunityChat: React.FC = () => {
 
     try {
       const res = await axios.get<ApiOk<Message[]>>(
-        `${API_BASE}/chat/channels/${channelId}/messages`,
+        `${import.meta.env.VITE_API_URL}/chat/channels/${channelId}/messages`,
         {
-          ...authConfig(),
+          headers: { Authorization: `Bearer ${token}` },
           params: { limit: 50 },
         }
       );
 
-      let fetchedMessages = Array.isArray(res.data?.data)
-        ? res.data.data
-        : [];
+      let fetchedMessages = Array.isArray(res.data?.data) ? res.data.data : [];
 
       // bỏ các tin rỗng
       fetchedMessages = fetchedMessages.filter(
@@ -140,15 +124,12 @@ const CommunityChat: React.FC = () => {
       setError("Bạn cần đăng nhập để sử dụng chat.");
       return;
     }
-
-    const token = localStorage.getItem("token");
     if (!token) {
       setError("Không tìm thấy token xác thực.");
       return;
     }
 
-    const socketUrl =
-      import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
+    const socketUrl = import.meta.env.VITE_SOCKET_URL;
 
     const socket = io(socketUrl, {
       auth: { token },
@@ -165,8 +146,10 @@ const CommunityChat: React.FC = () => {
       try {
         setLoadingChannels(true);
         const res = await axios.get<ApiOk<Channel[]>>(
-          `${API_BASE}/chat/channels`,
-          authConfig()
+          `${import.meta.env.VITE_API_URL}/chat/channels`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
 
         const fetchedChannels = Array.isArray(res.data?.data)
@@ -175,7 +158,6 @@ const CommunityChat: React.FC = () => {
 
         setChannels(fetchedChannels);
 
-        // Auto join kênh đầu tiên nếu chưa chọn
         if (fetchedChannels.length > 0 && !selectedChannelIdRef.current) {
           const firstId = fetchedChannels[0].channelId;
           selectedChannelIdRef.current = firstId;
@@ -304,14 +286,18 @@ const CommunityChat: React.FC = () => {
     setLoadingRooms(true);
     try {
       const res = await axios.get<ApiOk<Room[]>>(
-        `${API_BASE}/chat/rooms`,
-        authConfig()
+        `${import.meta.env.VITE_API_URL}/chat/rooms`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       const data = Array.isArray(res.data?.data) ? res.data.data : [];
       setRooms(data);
     } catch (e: any) {
       const msg =
-        e?.response?.data?.message || e?.message || "Lỗi khi tải danh sách room";
+        e?.response?.data?.message ||
+        e?.message ||
+        "Lỗi khi tải danh sách room";
       toast.error(msg);
     } finally {
       setLoadingRooms(false);
@@ -319,7 +305,6 @@ const CommunityChat: React.FC = () => {
   };
 
   const handleJoinRoom = async (room: Room) => {
-    // Nếu đã joined thì chỉ cần chuyển channel
     if (room.joined) {
       joinChannel(room.channelId);
       setShowRooms(false);
@@ -329,19 +314,18 @@ const CommunityChat: React.FC = () => {
     try {
       setJoiningRoomId(room.channelId);
       await axios.post<ApiOk<{ channelId: number; joined: boolean }>>(
-        `${API_BASE}/chat/channels/${room.channelId}/join`,
-        null,
-        authConfig()
+        `${import.meta.env.VITE_API_URL}/chat/channels/${room.channelId}/join`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
-      // update rooms joined flag
       setRooms((prev) =>
         prev.map((r) =>
           r.channelId === room.channelId ? { ...r, joined: true } : r
         )
       );
 
-      // nếu kênh chưa nằm trong channels thì thêm vào
       setChannels((prev) => {
         if (prev.some((c) => c.channelId === room.channelId)) return prev;
         const newChannel: Channel = {
@@ -407,8 +391,8 @@ const CommunityChat: React.FC = () => {
   return (
     <div
       className="
-        fixed bottom-6 right-6
-        w-[420px] h-[560px]
+        fixed bottom-6 right-24
+        w-[420px] h-[500px]
         md:w-[460px] md:h-[620px]
         bg-gradient-to-b from-background/95 to-background/85
         backdrop-blur-xl
@@ -475,9 +459,7 @@ const CommunityChat: React.FC = () => {
               Đang tải kênh...
             </p>
           )}
-          {error && (
-            <p className="text-[11px] text-red-500 px-1">{error}</p>
-          )}
+          {error && <p className="text-[11px] text-red-500 px-1">{error}</p>}
           {!loadingChannels && channels.length === 0 && (
             <p className="text-[11px] text-muted-foreground px-1">
               Không có kênh nào.
@@ -540,18 +522,14 @@ const CommunityChat: React.FC = () => {
               </p>
             )}
             {error && !loadingMessages && (
-              <p className="text-[11px] text-red-500 text-center">
-                {error}
+              <p className="text-[11px] text-red-500 text-center">{error}</p>
+            )}
+            {!loadingMessages && messages.length === 0 && selectedChannelId && (
+              <p className="text-[11px] text-muted-foreground text-center mt-4">
+                Chưa có tin nhắn nào trong kênh này. Hãy là người nhắn đầu tiên
+                ✨
               </p>
             )}
-            {!loadingMessages &&
-              messages.length === 0 &&
-              selectedChannelId && (
-                <p className="text-[11px] text-muted-foreground text-center mt-4">
-                  Chưa có tin nhắn nào trong kênh này. Hãy là người nhắn đầu
-                  tiên ✨
-                </p>
-              )}
             {!selectedChannelId && (
               <p className="text-[11px] text-muted-foreground text-center mt-4">
                 Chọn một kênh ở bên trái để bắt đầu chat.
@@ -614,9 +592,7 @@ const CommunityChat: React.FC = () => {
                       <span className="font-semibold text-[11px]">
                         {msg.sender?.username || "Ẩn danh"}
                       </span>
-                      <span className="text-[9px] opacity-70">
-                        {timeText}
-                      </span>
+                      <span className="text-[9px] opacity-70">{timeText}</span>
                     </div>
 
                     <div className="leading-snug break-words whitespace-pre-wrap">

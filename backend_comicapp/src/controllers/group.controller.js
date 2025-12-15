@@ -152,6 +152,15 @@ module.exports = (groupService) => ({
       next(err);
     }
   },
+    // GET /api/groups/my
+  listMyGroups: asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+
+    const items = await groupService.listUserGroupsForDialog({ userId });
+
+    return ok(res, { data: items });
+  }),
+
 
   // GET /api/groups/:groupId/eligible-members?q=&page=&limit=
   searchEligibleMembers: asyncHandler(async (req, res) => {

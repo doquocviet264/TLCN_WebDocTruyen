@@ -35,68 +35,109 @@ module.exports = ({ sequelize, model, repos }) => {
   return {
     // Cho người dùng
     async getComicDetails({ slug, userId }) {
-      const comic = await comicRepo.findOne(
-        {
-            where: { slug },
+    const comic = await comicRepo.findOne(
+      {
+        where: { slug },
+        attributes: [
+          "comicId",
+          "title",
+          "slug",
+          "author",
+          "status",
+          "description",
+          "coverImage",   // lấy trực tiếp, không dùng literal
+          "updatedAt",    // tránh ambiguous "updatedAt"
+        ],
+        include: [
+          {
+            model: model.Genre,
+            attributes: ["name"],
+            through: { attributes: [] },
+          },
+          {
+            model: model.Chapter,
             attributes: [
-            "comicId", "title", "slug", "author", "status", "description",
-            [literal("coverImage"), "image"],
-            [literal("updatedAt"), "lastUpdate"],
+              "chapterId",
+              "chapterNumber",
+              "title",
+              "views",
+              "isLocked",
+              "updatedAt",
             ],
-            include: [
-            { model: model.Genre, attributes: ["name"], through: { attributes: [] } },
-            {
-                model: model.Chapter,
-                attributes: ["chapterId","chapterNumber","title","views","isLocked","updatedAt"],
-                separate: true,
-                order: [["chapterNumber", "DESC"]],
-            },
-            ],
-            // transaction: t,
-        },
-        { model }
-        );
-      if (!comic) throw new AppError("Không tìm thấy truyện", 404, "COMIC_NOT_FOUND");
+            separate: true,
+            order: [["chapterNumber", "DESC"]],
+          },
+          {
+            model: model.AlternateName,
+            attributes: ["name"],
+          },
+          {
+            model: model.TranslationGroup,
+            as: "group",          // alias đúng với association
+            attributes: ["name"],
+            required: false,      // để groupId null vẫn lấy comic
+          },
+        ],
+        // transaction: t,
+      },
+      { model }
+    );
 
-      // followers/likers/ratings
-      const [followers, likers, ratings] = await Promise.all([
-        comic.getFollowers({ attributes: ["userId"] }),
-        comic.getLikers({ attributes: ["userId"] }),
-        comic.getComicRatings({ attributes: ["score"] }),
-      ]);
-      const followerCount = followers.length;
-      const likerCount = likers.length;
-      const isFollowing = !!(userId && followers.some(f => f.userId === userId));
-      const isFavorite  = !!(userId && likers.some(f => f.userId === userId));
-      const totalScore  = ratings.reduce((s, r) => s + (r.score || 0), 0);
-      const rating = ratings.length ? +(totalScore / ratings.length).toFixed(1) : 0;
+    if (!comic) {
+      throw new AppError("Không tìm thấy truyện", 404, "COMIC_NOT_FOUND");
+    }
 
-      return {
-        id: comic.comicId,
-        slug: comic.slug,
-        title: comic.title,
-        author: comic.author,
-        image: comic.get("image"),
-        lastUpdate: comic.get("lastUpdate"),
-        status: comic.status,
-        description: comic.description,
-        genres: comic.Genres.map(g => g.name),
-        rating,
-        reviewCount: ratings.length,
-        followers: followerCount,
-        isFollowing,
-        likers: likerCount,
-        isFavorite,
-        chapters: comic.Chapters.map(c => ({
-          id: c.chapterId,
-          number: c.chapterNumber,
-          title: c.title,
-          views: c.views,
-          isLocked: c.isLocked,
-          time: c.updatedAt,
-        })),
-      };
-    },
+    // followers/likers/ratings
+    const [followers, likers, ratings] = await Promise.all([
+      comic.getFollowers({ attributes: ["userId"] }),
+      comic.getLikers({ attributes: ["userId"] }),
+      comic.getComicRatings({ attributes: ["score"] }),
+    ]);
+
+    const followerCount = followers.length;
+    const likerCount = likers.length;
+    const isFollowing = !!(userId && followers.some((f) => f.userId === userId));
+    const isFavorite  = !!(userId && likers.some((f) => f.userId === userId));
+    const totalScore  = ratings.reduce((s, r) => s + (r.score || 0), 0);
+    const rating      = ratings.length ? +(totalScore / ratings.length).toFixed(1) : 0;
+
+    return {
+      id: comic.comicId,
+      slug: comic.slug,
+      title: comic.title,
+      author: comic.author,
+
+      // dùng field gốc
+      image: comic.coverImage,
+      lastUpdate: comic.updatedAt,
+
+      status: comic.status,
+      description: comic.description,
+
+      // Sequelize đặt alias mặc định là Genres / AlternateNames
+      genres: comic.Genres.map((g) => g.name),
+      altName: comic.AlternateNames?.map((a) => a.name) ?? [],
+
+      // alias "group" từ: Comic.belongsTo(TranslationGroup, { as: "group" })
+      groupName: comic.group?.name || null,
+
+      rating,
+      reviewCount: ratings.length,
+      followers: followerCount,
+      isFollowing,
+      likers: likerCount,
+      isFavorite,
+      chapters: comic.Chapters.map((c) => ({
+        id: c.chapterId,
+        number: c.chapterNumber,
+        title: c.title,
+        views: c.views,
+        isLocked: c.isLocked,
+        time: c.updatedAt,
+      })),
+    };
+  },
+
 
     async toggleFollow({ slug, userId }) {
       const comic = await model.Comic.findOne({

@@ -196,49 +196,49 @@ const AdminDashboardPage: React.FC = () => {
           communityStatsRes,
         ] = await Promise.all([
           axios.get<{ data: OverviewResponse }>(
-            "http://localhost:3000/api/admin/dashboard/overview",
+            `${import.meta.env.VITE_API_URL}/admin/dashboard/overview`,
             {
               params,
               headers: authHeaders,
             }
           ),
           axios.get<{ data: UserChartResponse }>(
-            "http://localhost:3000/api/admin/dashboard/users",
+            `${import.meta.env.VITE_API_URL}/admin/dashboard/users`,
             {
               params,
               headers: authHeaders,
             }
           ),
           axios.get<{ data: ViewChartResponse }>(
-            "http://localhost:3000/api/admin/dashboard/views",
+            `${import.meta.env.VITE_API_URL}/admin/dashboard/views`,
             {
               params,
               headers: authHeaders,
             }
           ),
           axios.get<{ data: TopComicsResponse }>(
-            "http://localhost:3000/api/admin/dashboard/top-comics",
+            `${import.meta.env.VITE_API_URL}/admin/dashboard/top-comics`,
             {
               params: { ...params, limit: 5 },
               headers: authHeaders,
             }
           ),
           axios.get<{ data: TopUsersResponse }>(
-            "http://localhost:3000/api/admin/dashboard/top-users",
+            `${import.meta.env.VITE_API_URL}/api/admin/dashboard/top-users`,
             {
               params: { limit: 5 }, // BE không dùng from/to nữa
               headers: authHeaders,
             }
           ),
           axios.get<{ data: ReportStatsResponse }>(
-            "http://localhost:3000/api/admin/dashboard/reports",
+            `${import.meta.env.VITE_API_URL}/admin/dashboard/reports`,
             {
               params,
               headers: authHeaders,
             }
           ),
           axios.get<{ data: CommunityStatsResponse }>(
-            "http://localhost:3000/api/admin/dashboard/community",
+            `${import.meta.env.VITE_API_URL}/admin/dashboard/community`,
             {
               params,
               headers: authHeaders,

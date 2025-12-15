@@ -9,6 +9,7 @@ import Genres from "../pages/admin/ManageGenre";
 import Notifications from "../pages/admin/ManageNotification";
 import Application from "../pages/admin/ApplicationManagementPage";
 import Dashboard from "../pages/admin/AdminDashboardPage";
+import CommunityPosts from "../pages/admin/ManagePost";
 const AdminRoutes = (
     <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<Dashboard />} />
@@ -21,6 +22,7 @@ const AdminRoutes = (
         <Route path="notifications" element={<Notifications />} />
         <Route path="applications" element={<Application />} />
         <Route path="genres" element={<Genres />} />
+        <Route path="community-posts" element={<CommunityPosts />} />
     </Route>
 );
 

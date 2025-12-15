@@ -18,12 +18,11 @@ import GroupDetailPage from "../pages/GroupDetailPage";
 
 const UserRoutes = (
     <Route path="/" element={<UserLayout />}>
-        <Route path="" element={<HomePage />} />
+        <Route index element={<HomePage />} />
         <Route path="auth/register" element={<RegisterPage />} />
         <Route path="auth/login" element={<LoginPage />} />
         <Route path="auth/verify-otp" element={<VerifyOTPPage />} />
         <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="auth/reset-password" element={<ResetPasswordPage />} />
         <Route path="reset-password/:token" element={<ResetPasswordPage />} />
         <Route path="truyen-tranh/:slug/chapter/:chapterNumber" element={<ChapterPage />} />
         <Route path="truyen-tranh/:slug" element={<ComicDetailPage />} />

@@ -90,15 +90,15 @@ export default function ComicRow({ title, comics, isLoading }: ComicRowProps) {
         <div className="flex gap-2">
           <button
             onClick={() => scroll("left")}
-            className="flex items-center justify-center w-12 h-12 rounded-full border border-blue-500 text-white bg-[#141a24] 
-             hover:bg-[#1b2433] hover:scale-105 transition-all duration-200 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
+            className="flex items-center justify-center w-10 h-10 rounded-full border  
+              hover:scale-105 transition-all duration-200 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
           >
             <ChevronLeft size={20} />
           </button>
           <button
             onClick={() => scroll("right")}
-            className="flex items-center justify-center w-12 h-12 rounded-full border border-blue-500 text-white bg-[#141a24] 
-             hover:bg-[#1b2433] hover:scale-105 transition-all duration-200 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
+            className="flex items-center justify-center w-10 h-10 rounded-full border  
+              hover:scale-105 transition-all duration-200 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
           >
             <ChevronRight size={20} />
           </button>

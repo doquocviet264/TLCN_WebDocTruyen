@@ -4,110 +4,130 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.96 0.01 260); /* Light gray-blue, không trắng gắt */
-  --foreground: oklch(0.2 0.01 260); /* Tối vừa */
+  /* --- LIGHT MODE: Clean Slate Blue --- */
   
-  --card: oklch(0.98 0.01 260 / 0.7); /* Card gần trắng, hơi trong suốt */
-  --card-foreground: oklch(0.2 0.01 260);
+  /* Nền trắng ánh xanh nhẹ (Cool White) - Tránh bị chói */
+  --background: oklch(0.97 0.01 255); 
+  /* Chữ màu xanh đen than (Slate 900) - Dễ đọc hơn đen tuyền */
+  --foreground: oklch(0.20 0.04 255); 
 
-  --popover: oklch(0.95 0.01 260 / 0.95);
-  --popover-foreground: oklch(0.2 0.01 260);
+  /* Card trắng hơn nền một chút, viền xanh nhạt */
+  --card: oklch(0.99 0.005 255); 
+  --card-foreground: oklch(0.20 0.04 255);
 
-  --primary: oklch(0.65 0.15 250); /* Xanh dương làm màu chính */
-  --primary-foreground: oklch(0.98 0.01 260);
+  --popover: oklch(0.99 0.005 255);
+  --popover-foreground: oklch(0.20 0.04 255);
 
-  --secondary: oklch(0.85 0.08 200); /* Xanh teal nhạt */
-  --secondary-foreground: oklch(0.2 0.01 260);
+  /* Xanh dương hiện đại (Vibrant Blue) */
+  --primary: oklch(0.55 0.18 255); 
+  --primary-foreground: oklch(0.98 0.01 255);
 
-  --muted: oklch(0.92 0.01 260); /* Nền muted xám nhạt */
-  --muted-foreground: oklch(0.45 0.01 260);
+  /* Xanh nhạt pha xám cho các yếu tố phụ */
+  --secondary: oklch(0.94 0.03 255); 
+  --secondary-foreground: oklch(0.25 0.04 255);
 
-  --accent: oklch(0.88 0.1 210); /* Xanh nhạt accent */
-  --accent-foreground: oklch(0.2 0.01 260);
+  /* Nền muted xám xanh */
+  --muted: oklch(0.92 0.02 255); 
+  --muted-foreground: oklch(0.45 0.02 255);
 
-  --destructive: oklch(0.55 0.22 25); /* Đỏ cho destructive */
+  /* Accent khi hover: Xanh lơ nhạt */
+  --accent: oklch(0.92 0.03 255); 
+  --accent-foreground: oklch(0.25 0.04 255);
+
+  /* Đỏ đầm hơn */
+  --destructive: oklch(0.58 0.20 25); 
   --destructive-foreground: oklch(0.98 0 0);
 
-  --border: oklch(0.85 0.01 260);
-  --input: oklch(0.65 0.15 250);
-  --ring: oklch(0.65 0.15 250 / 0.5);
+  /* Viền xám xanh nhạt */
+  --border: oklch(0.90 0.02 255);
+  --input: oklch(0.90 0.02 255);
+  --ring: oklch(0.55 0.18 255 / 0.3);
 
-  --chart-1: oklch(0.65 0.15 250);
-  --chart-2: oklch(0.85 0.08 200);
-  --chart-3: oklch(0.75 0.12 280);
-  --chart-4: oklch(0.6 0.18 120);
-  --chart-5: oklch(0.7 0.2 60);
+  /* Chart palette - Điều chỉnh cho hợp tông xanh */
+  --chart-1: oklch(0.55 0.18 255); /* Xanh chính */
+  --chart-2: oklch(0.65 0.15 200); /* Teal */
+  --chart-3: oklch(0.60 0.15 280); /* Tím */
+  --chart-4: oklch(0.70 0.15 140); /* Xanh lá */
+  --chart-5: oklch(0.70 0.15 60);  /* Cam */
 
   --radius: 0.5rem;
 
-  --sidebar: oklch(0.95 0.01 260);
-  --sidebar-foreground: oklch(0.2 0.01 260);
-  --sidebar-primary: oklch(0.65 0.15 250);
-  --sidebar-primary-foreground: oklch(0.98 0.01 260);
-  --sidebar-accent: oklch(0.85 0.08 200);
-  --sidebar-accent-foreground: oklch(0.2 0.01 260);
-  --sidebar-border: oklch(0.85 0.01 260);
-  --sidebar-ring: oklch(0.65 0.15 250 / 0.5);
+  --sidebar: oklch(0.96 0.01 255);
+  --sidebar-foreground: oklch(0.25 0.04 255);
+  --sidebar-primary: oklch(0.55 0.18 255);
+  --sidebar-primary-foreground: oklch(0.98 0.01 255);
+  --sidebar-accent: oklch(0.93 0.02 255);
+  --sidebar-accent-foreground: oklch(0.25 0.04 255);
+  --sidebar-border: oklch(0.90 0.02 255);
+  --sidebar-ring: oklch(0.55 0.18 255 / 0.3);
 
-  --comic-rating-color: oklch(0.8 0.15 85);   /* Vàng gold rating */
-  --comic-heart-color: oklch(0.65 0.25 25);   /* Đỏ tim */
-  --comic-comment-color: oklch(0.65 0.12 250);/* Xanh dương comment */
+  /* Comic colors - Giữ nguyên nhưng tinh chỉnh độ sáng */
+  --comic-rating-color: oklch(0.75 0.16 85); 
+  --comic-heart-color: oklch(0.60 0.22 25); 
+  --comic-comment-color: oklch(0.55 0.18 255);
 }
-
 
 .dark {
-  /* Dark theme xanh đậm sáng hơn */
-  --background: oklch(0.18 0.02 260); /* Xanh navy sáng hơn (#1a2238) */
-  --foreground: oklch(0.96 0.01 260); /* Gần trắng */
+  /* --- DARK MODE: Modern Slate (Xám Chì - Trầm và Sang) --- */
+  
+  /* 1. Nền: Giữ độ sáng 0.20 (dễ nhìn) nhưng GIẢM màu xanh (chroma 0.06 -> 0.02)
+     Kết quả: Màu xám đen trung tính, rất lì. */
+  --background: oklch(0.20 0.02 260); 
+  --foreground: oklch(0.98 0 0); /* Trắng hoàn toàn */
 
-  --card: oklch(0.28 0.02 260 / 0.95); /* Card sáng hơn nền */
-  --card-foreground: oklch(0.96 0.01 260);
+  /* 2. Card: Sáng hơn nền một chút để tách lớp */
+  --card: oklch(0.23 0.02 260);
+  --card-foreground: oklch(0.98 0 0);
 
-  --popover: oklch(0.2 0.02 260 / 0.95);
-  --popover-foreground: oklch(0.98 0.01 260);
+  --popover: oklch(0.23 0.02 260);
+  --popover-foreground: oklch(0.98 0 0);
 
-  --primary: oklch(0.72 0.15 250); /* Xanh dương sáng hơn */
-  --primary-foreground: oklch(0.1 0.02 260);
+  /* 3. Primary: Giữ màu xanh dương sáng làm điểm nhấn duy nhất */
+  --primary: oklch(0.65 0.18 255);
+  --primary-foreground: oklch(1 0 0);
 
-  --secondary: oklch(0.75 0.12 200); /* Teal sáng hơn */
-  --secondary-foreground: oklch(0.1 0.02 260);
+  --secondary: oklch(0.27 0.03 260);
+  --secondary-foreground: oklch(0.98 0 0);
 
-  --muted: oklch(0.4 0.02 260); /* sáng hơn rõ ràng */
-  --muted-foreground: oklch(0.8 0.02 260); /* chữ dễ đọc */
+  /* 4. Tab Container (Muted):
+     Cho màu TỐI HƠN nền (0.15) và xám hơn.
+     Khi đặt tab chọn (màu sáng) lên, nó sẽ rất nổi. */
+  --muted: oklch(0.15 0.02 260);
+  --muted-foreground: oklch(0.70 0.02 260);
 
-  --accent: oklch(0.78 0.12 220); /* Xanh ngọc sáng hơn */
-  --accent-foreground: oklch(0.1 0.02 260);
+  /* Accent: Màu khi hover */
+  --accent: oklch(0.28 0.03 260);
+  --accent-foreground: oklch(0.98 0 0);
 
-  --destructive: oklch(0.6 0.2 25); /* Đỏ tươi */
+  --destructive: oklch(0.62 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
 
-  --border: oklch(0.45 0.02 260); /* Viền sáng hơn */
-  --input: oklch(0.72 0.15 250);
-  --ring: oklch(0.72 0.15 250 / 0.6);
+  /* Viền: Màu xám nhẹ, không ám xanh */
+  --border: oklch(0.28 0.02 260);
+  --input: oklch(0.28 0.02 260);
+  --ring: oklch(0.65 0.18 255 / 0.4);
 
-  /* Chart palette xanh */
-  --chart-1: oklch(0.72 0.15 250);
-  --chart-2: oklch(0.75 0.12 200);
-  --chart-3: oklch(0.8 0.12 280);
-  --chart-4: oklch(0.7 0.15 120);
-  --chart-5: oklch(0.75 0.18 60);
+  /* Chart & Sidebar */
+  --chart-1: oklch(0.65 0.18 255);
+  --chart-2: oklch(0.70 0.15 200);
+  --chart-3: oklch(0.70 0.15 280);
+  --chart-4: oklch(0.75 0.15 140);
+  --chart-5: oklch(0.75 0.15 60);
 
-  --sidebar: oklch(0.2 0.02 260); /* Sidebar sáng hơn */
-  --sidebar-foreground: oklch(0.96 0.01 260);
-  --sidebar-primary: oklch(0.72 0.15 250);
-  --sidebar-primary-foreground: oklch(0.1 0.02 260);
-  --sidebar-accent: oklch(0.75 0.12 200);
-  --sidebar-accent-foreground: oklch(0.1 0.02 260);
-  --sidebar-border: oklch(0.35 0.02 260);
-  --sidebar-ring: oklch(0.72 0.15 250 / 0.6);
+  --sidebar: oklch(0.17 0.02 260); /* Sidebar tối hơn nền chính */
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.65 0.18 255);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.25 0.03 260);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.28 0.02 260);
+  --sidebar-ring: oklch(0.65 0.18 255 / 0.4);
 
-  /* Icon colors */
-  --comic-rating-color: oklch(0.85 0.15 85);   /* Vàng sáng hơn cho rating */
-  --comic-heart-color: oklch(0.65 0.25 30);    /* Đỏ tim */
-  --comic-comment-color: oklch(0.72 0.12 250); /* Xanh dương sáng hơn cho comment */
+  /* Icon Colors */
+  --comic-rating-color: oklch(0.85 0.16 85);
+  --comic-heart-color: oklch(0.65 0.22 25);
+  --comic-comment-color: oklch(0.70 0.15 255);
 }
-
-
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
@@ -148,6 +168,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  
+  /* Thêm custom colors vào theme để gọi class tiện hơn */
+  --color-comic-rating: var(--comic-rating-color);
+  --color-comic-heart: var(--comic-heart-color);
+  --color-comic-comment: var(--comic-comment-color);
 }
 
 @layer base {
@@ -162,15 +187,15 @@
 /* Track khi unchecked */
 [data-state="unchecked"] .switch-track {
   background-color: var(--muted);
-  border: 1px solid var(--border); /* nền xám nhạt hoặc xám đậm tùy bạn */
+  border: 1px solid var(--border);
 }
 
 /* Track khi checked */
 [data-state="checked"] .switch-track {
-  background-color: var(--primary); /* xanh dương */
+  background-color: var(--primary);
 }
 
 /* Thumb */
 .switch-thumb {
-  background-color: var(--primary); /* cho nó luôn xanh dương, kể cả unchecked */
+  background-color: white; /* Thumb nên để trắng cho nổi bật */
 }

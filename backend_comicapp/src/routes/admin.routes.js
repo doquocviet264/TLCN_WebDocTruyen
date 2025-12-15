@@ -19,6 +19,12 @@ const reportRepo = require("../repositories/report.repo");
 const commentLikeRepo = require("../repositories/comment-like.repo");
 const notificationRepo = require("../repositories/notification.repo");
 const deliveryRepo = require("../repositories/notification-delivery.repo");
+const postRepo = require("../repositories/post.repo");
+const postLikeRepo = require("../repositories/postLike.repo");
+const postCommentRepo = require("../repositories/postComment.repo");
+
+const communityServiceFactory = require("../services/community.service");
+const communityControllerFactory = require("../controllers/community.controller");
 
 const dashboardServiceFactory = require("../services/dashboard.service");
 const dashboardControllerFactory = require("../controllers/dashboard.controller");
@@ -40,6 +46,15 @@ const comicServiceFactory = require("../services/comic.service");
 const comicControllerFactory = require("../controllers/comic.controller");
 const { protect, isAdmin } = require("../middlewares/auth");
 const validateRequest = require("../validators/validateRequest");
+const communityService = communityServiceFactory({
+  sequelize,
+  model: models,
+  postRepo,
+  postLikeRepo,
+  postCommentRepo,
+});
+
+const communityController = communityControllerFactory(communityService);
 
 const {
   idParam, comicIdParam, chapterIdParam, userIdParam, actionParam, pagingQuery,
@@ -193,7 +208,7 @@ router.post("/comics", protect, isAdmin, createComicValidator, validateRequest, 
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
-router.put("/comics/:id", protect, isAdmin, idParam, updateComicValidator, validateRequest, comicController.updateComic);
+router.put("/comics/:id", protect, idParam, updateComicValidator, validateRequest, comicController.updateComic);
 /**
  * @openapi
  * /admin/comics/{id}:
@@ -218,7 +233,7 @@ router.put("/comics/:id", protect, isAdmin, idParam, updateComicValidator, valid
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
-router.get("/comics/:id", protect, isAdmin, idParam, validateRequest, comicController.getComicByIdForAdmin);
+router.get("/comics/:id", protect, idParam, validateRequest, comicController.getComicByIdForAdmin);
 /**
  * @openapi
  * /admin/comics/{id}:
@@ -245,7 +260,7 @@ router.get("/comics/:id", protect, isAdmin, idParam, validateRequest, comicContr
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
 
-router.delete("/comics/:id", protect,isAdmin, idParam, validateRequest, comicController.deleteComic)
+router.delete("/comics/:id", protect, idParam, validateRequest, comicController.deleteComic)
 /* Chapters */
 /**
  * @openapi
@@ -276,7 +291,7 @@ router.delete("/comics/:id", protect,isAdmin, idParam, validateRequest, comicCon
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
-router.put("/chapters/:id", protect, isAdmin, chapterIdParam, updateChapterValidator, validateRequest, chapterController.updateChapter);
+router.put("/chapters/:id", protect, chapterIdParam, updateChapterValidator, validateRequest, chapterController.updateChapter);
 /**
  * @openapi
  * /admin/comics/{comicId}/chapters:
@@ -306,7 +321,7 @@ router.put("/chapters/:id", protect, isAdmin, chapterIdParam, updateChapterValid
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
-router.post("/comics/:comicId/chapters", protect, isAdmin, comicIdParam, addChapterValidator, validateRequest, chapterController.addChapter);
+router.post("/comics/:comicId/chapters", protect, comicIdParam, addChapterValidator, validateRequest, chapterController.addChapter);
 /**
  * @openapi
  * /admin/chapters/{id}:
@@ -332,7 +347,7 @@ router.post("/comics/:comicId/chapters", protect, isAdmin, comicIdParam, addChap
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorEnvelope' }
  */
-router.delete("/chapters/:id", protect, isAdmin, chapterIdParam, validateRequest, chapterController.deleteChapter)
+router.delete("/chapters/:id", protect, chapterIdParam, validateRequest, chapterController.deleteChapter)
 /* Users */
 /**
  * @openapi
@@ -909,5 +924,21 @@ router.get("/dashboard/reports", protect, isAdmin, dashboardController.getReport
  *             schema: { $ref: '#/components/schemas/OkEnvelope' }
  */
 router.get("/dashboard/community", protect, isAdmin, dashboardController.getCommunityStats);
+router.get(
+  "/posts",
+  protect,
+  isAdmin,
+  pagingQuery,
+  validateRequest,
+  communityController.adminListPosts
+);
 
+router.delete(
+  "/posts/:id",
+  protect,
+  isAdmin,
+  idParam,
+  validateRequest,
+  communityController.adminDeletePost
+);
 module.exports = router;

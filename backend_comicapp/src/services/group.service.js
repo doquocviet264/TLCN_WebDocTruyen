@@ -48,6 +48,35 @@ module.exports = ({ sequelize, model, repos }) => {
         return group;
       });
     },
+        // Dùng cho dialog "Nhóm của tôi" trên FE
+    async listUserGroupsForDialog({ userId }) {
+      // Lấy membership + group tương ứng
+      const memberships = await model.TranslationGroupMember.findAll({
+        where: { userId },
+        include: [
+          {
+            model: model.TranslationGroup,
+            as: "group",
+            attributes: ["groupId", "name", "avatarUrl"],
+          },
+        ],
+        order: [["joinedAt", "DESC"]],
+      });
+
+      // Map ra format gọn cho FE
+      return memberships
+        .map((m) => {
+          const g = m.group;
+          if (!g) return null; // phòng trường hợp assoc lỗi
+          return {
+            groupId: g.groupId,
+            name: g.name,
+            avatarUrl: g.avatarUrl,
+            role: m.role, // leader | member
+          };
+        })
+        .filter(Boolean);
+    },
 
     // GET /api/groups?q=&page=&limit=
     async listGroups({ q, page, limit }) {

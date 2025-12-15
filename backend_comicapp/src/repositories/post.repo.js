@@ -1,5 +1,5 @@
-// Community Post Repository - DI: { model } bắt buộc
 
+const { Op, literal } = require("sequelize");
 module.exports = {
   async create(data, { model, transaction } = {}) {
     return model.Post.create(data, { transaction });
@@ -41,6 +41,87 @@ module.exports = {
       imageNumber: img.imageNumber ?? 0,
     }));
     return model.PostImage.bulkCreate(rows, { transaction });
+  },
+  async adminFindAndCount(params, { model }) {
+  const {
+    kw, type, userId, comicId,
+    page, limit, sort,
+    windowStart, windowEnd,
+    reportFilter = "all",
+  } = params;
+
+  const whereClause = {};
+  if (type) whereClause.type = type;
+  if (userId) whereClause.userId = Number(userId);
+  if (comicId) whereClause.comicId = Number(comicId);
+
+  if (kw) {
+    whereClause[Op.or] = [
+      { title: { [Op.like]: `%${kw}%` } },
+      { content: { [Op.like]: `%${kw}%` } },
+    ];
+  }
+
+  if (windowStart && windowEnd) {
+    whereClause.createdAt = { [Op.between]: [windowStart, windowEnd] };
+  }
+
+  // ✅ report filter via WHERE EXISTS (không dùng HAVING)
+  const reportExists = literal(`
+    EXISTS(
+      SELECT 1
+      FROM reports r
+      WHERE r.type = 'post' AND r.targetId = \`Post\`.\`postId\`
+    )
+  `);
+
+  if (reportFilter === "reported") {
+    whereClause[Op.and] = [...(whereClause[Op.and] || []), reportExists];
+  } else if (reportFilter === "clean") {
+    whereClause[Op.and] = [...(whereClause[Op.and] || []), literal(`NOT ${reportExists.val}`)];
+  }
+
+  const offset = (Number(page) - 1) * Number(limit);
+  let order = [["createdAt", "DESC"]];
+  if (sort === "old") order = [["createdAt", "ASC"]];
+
+  const reportsCountLiteral = literal(`
+    (SELECT COUNT(*)
+     FROM reports r
+     WHERE r.type = 'post' AND r.targetId = \`Post\`.\`postId\`)
+  `);
+
+  return model.Post.findAndCountAll({
+    where: whereClause,
+    distinct: true,
+    limit: Number(limit),
+    offset,
+    order,
+    include: [
+      { model: model.User, as: "author", attributes: ["userId", "username", "avatar", "email"] },
+      { model: model.Comic, as: "comic", attributes: ["comicId", "title", "slug"] },
+      { model: model.PostImage, as: "images", attributes: ["postimageId", "imageUrl", "imageNumber"] },
+    ],
+    attributes: {
+      include: [
+        [literal(`(SELECT COUNT(*) FROM postlikes pl WHERE pl.postId = \`Post\`.\`postId\`)`), "likesCount"],
+        [literal(`(SELECT COUNT(*) FROM postcomments pc WHERE pc.postId = \`Post\`.\`postId\`)`), "commentsCount"],
+        [reportsCountLiteral, "reportsCount"],
+      ],
+    },
+  });
+},
+
+  async deleteById(postId, { model, transaction }) {
+    const id = Number(postId);
+
+    await model.PostLike.destroy({ where: { postId: id }, transaction });
+    await model.PostComment.destroy({ where: { postId: id }, transaction });
+    await model.PostGenre.destroy({ where: { postId: id }, transaction });
+    await model.PostImage.destroy({ where: { postId: id }, transaction });
+    await model.Post.destroy({ where: { postId: id }, transaction });
+
+    return true;
   },
 
   async findAndCount(params = {}, { model } = {}) {
