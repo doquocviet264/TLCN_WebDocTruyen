@@ -1,6 +1,8 @@
 // app/sockets/chat.socket.js
 const { models } = require("../db");
 const moderationServiceFactory = require("../services/moderation.service");
+const axios = require("axios");
+const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || "http://127.0.0.1:8000";
 
 // Map lưu trạng thái online: channelId -> Map<userId, connectionCount>
 const channelOnlineMap = new Map();
@@ -12,7 +14,6 @@ function attachChatSocket(io, socket) {
   // Track các channel mà socket này đang join
   socket.joinedChannels = new Set();
 
-  // ===================== helper =====================
   function emitOnlineUsers(channelId) {
     const roomMap = channelOnlineMap.get(channelId);
     const userIds = roomMap ? Array.from(roomMap.keys()) : [];
@@ -160,13 +161,91 @@ function attachChatSocket(io, socket) {
       removeOnlineUser(channelId, userId);
     }
 
-    console.log(`👤 User ${socket.user?.userId} left ${roomName}`);
   };
+  const handleChatbotAsk = async (payload) => {
+  try {
+    const user = socket.user;
+    console.log(user)
+    const userId = user?.userId;
+    if (!userId) {
+      return socket.emit("chatbot:error", { message: "Bạn cần đăng nhập để dùng chatbot." });
+    }
+
+    const content = (payload?.content ?? "").toString().trim();
+    const context = payload?.context || {};
+    const personaId = payload?.personaId || "3"; // default GenZ (tuỳ bạn)
+    const rawHistory = Array.isArray(payload?.history) ? payload.history : [];
+    const history = rawHistory
+      .slice(-10)
+      .map((m) => ({
+        role: m?.role === "assistant" ? "assistant" : "user",
+        content: (m?.content ?? "").toString().slice(0, 800),
+      }))
+      .filter((m) => m.content.trim().length > 0);
+
+    if (!content) return;
+
+    // (Optional) moderation giống chat thường
+    const decision = await moderationService.evaluateMessage({
+      user,
+      channelId: null,
+      content,
+    });
+    if (decision.action === "BLOCK") {
+      return socket.emit("chatbot:blocked", {
+        reason: "BANNED_KEYWORD",
+        detail: decision.reason,
+      });
+    }
+
+    // 1) Echo lại message user cho UI (để hiện ngay)
+    socket.emit("chatbot:message", {
+      role: "user",
+      content,
+      createdAt: new Date().toISOString(),
+    });
+
+    // 2) Gọi FastAPI /chat
+    const apiRes = await axios.post(
+      `${FASTAPI_BASE_URL}/chat`,
+      {
+        message: content,
+        personaId,
+        context: {
+          page: context.page || "home",
+          comicSlug: context.comicSlug || null,
+          chapterId: context.chapterId || null,
+        },
+        history,
+      },
+      { timeout: 60000 }
+    );
+
+    const data = apiRes.data || {};
+    console.log(data)
+    // 3) Emit lại cho FE
+    socket.emit("chatbot:reply", {
+      role: "assistant",
+      content: data.reply || "Mình chưa thể trả lời lúc này.",
+      intent: data.intent || null,
+      results: Array.isArray(data.results) ? data.results : [],
+      actions: Array.isArray(data.actions) ? data.actions : [],
+      createdAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("❌ chatbot:ask error:", err?.response?.data || err.message);
+    socket.emit("chatbot:error", {
+      message: "Chatbot xử lý thất bại.",
+      error: err?.response?.data || err.message,
+    });
+  }
+};
 
   // ===================== socket events =====================
   socket.on("chat:send", handleChatSend);
   socket.on("chat:join", handleJoin);
   socket.on("chat:leave", handleLeave);
+  socket.on("chatbot:ask", handleChatbotAsk);
 
   socket.on("disconnect", () => {
     const userId = socket.user?.userId;

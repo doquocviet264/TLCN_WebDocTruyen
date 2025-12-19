@@ -193,7 +193,11 @@ db.PostComment = sequelize.define(
   // User <-> Comic (Likes M:N)
   db.User.belongsToMany(db.Comic, { through: db.ComicLike, as: "LikedComics", foreignKey: "userId" });
   db.Comic.belongsToMany(db.User, { through: db.ComicLike, as: "Likers", foreignKey: "comicId" });
+  db.ComicLike.belongsTo(db.User, { foreignKey: "userId", as: "user" });
+  db.ComicLike.belongsTo(db.Comic, { foreignKey: "comicId", as: "comic" });
 
+  db.User.hasMany(db.ComicLike, { foreignKey: "userId", as: "comicLikeRows" });
+  db.Comic.hasMany(db.ComicLike, { foreignKey: "comicId", as: "comicLikeRows" });
   // Comment <-> Chapter (1:N)  ⟵ THÊM
   db.Comment.belongsTo(db.Chapter, { foreignKey: "chapterId" });
   db.Chapter.hasMany(db.Comment, { foreignKey: "chapterId" });

@@ -2,8 +2,8 @@
 const AppError = require("../utils/AppError");
 
 module.exports = ({ sequelize, model, repos }) => {
-  const {comicRepo, groupRepo, groupMemberRepo } = repos;
-    const { Op } = model.Sequelize;
+  const { comicRepo, groupRepo, groupMemberRepo } = repos;
+  const { Op } = model.Sequelize;
 
   return {
     // POST /api/groups
@@ -48,7 +48,7 @@ module.exports = ({ sequelize, model, repos }) => {
         return group;
       });
     },
-        // Dùng cho dialog "Nhóm của tôi" trên FE
+    // Dùng cho dialog "Nhóm của tôi" trên FE
     async listUserGroupsForDialog({ userId }) {
       // Lấy membership + group tương ứng
       const memberships = await model.TranslationGroupMember.findAll({
@@ -110,10 +110,10 @@ module.exports = ({ sequelize, model, repos }) => {
             as: "comics",
             attributes: ["comicId"],
             include: [
-            {
+              {
                 model: model.Chapter,
                 attributes: ["chapterId", "views"],
-            },
+              },
             ],
           },
         ],
@@ -168,82 +168,82 @@ module.exports = ({ sequelize, model, repos }) => {
 
     // GET /api/groups/:groupId
     async getGroupDetails({ groupId }) {
-    const group = await groupRepo.findById(groupId, {
+      const group = await groupRepo.findById(groupId, {
         model,
         include: [
-        { model: model.User, as: "owner" },
+          { model: model.User, as: "owner" },
 
-        {
+          {
             model: model.TranslationGroupMember,
             as: "memberLinks",
             include: [{ model: model.User, as: "user" }],
-        },
+          },
 
-        {
+          {
             model: model.Comic,
             as: "comics",
             include: [
-            {
+              {
                 model: model.Chapter,
                 attributes: ["chapterNumber", "views"],
-            },
+              },
             ],
-        },
+          },
         ],
-    });
+      });
 
-    if (!group) {
+      if (!group) {
         throw new AppError("Không tìm thấy nhóm", 404, "GROUP_NOT_FOUND");
-    }
+      }
 
-    const g = group.toJSON();
-    const members = (g.memberLinks || []).map((link) => {
+      const g = group.toJSON();
+      const members = (g.memberLinks || []).map((link) => {
         const u = link.user || {};
         return {
-        userId: link.userId,
-        username: u.username || "Ẩn danh",
-        avatarUrl: u.avatarUrl || null,
-        role: link.role,
-        joinedAt: link.joinedAt,
+          userId: link.userId,
+          username: u.username || "Ẩn danh",
+          avatarUrl: u.avatarUrl || null,
+          role: link.role,
+          joinedAt: link.joinedAt,
         };
-    });
+      });
 
-    const totalMembers = members.length;
+      const totalMembers = members.length;
 
-    const comics = (g.comics || []).map((c) => {
+      const comics = (g.comics || []).map((c) => {
         const chapters = c.Chapters || [];
 
         const views = chapters.reduce(
-        (sum, ch) => sum + (ch.views || 0),
-        0
+          (sum, ch) => sum + (ch.views || 0),
+          0
         );
 
-        let lastChapterNumber = parseFloat(chapters[chapters.length-1]?.chapterNumber) || null;
+        let lastChapterNumber = parseFloat(chapters[chapters.length - 1]?.chapterNumber) || null;
 
         const isCompleted =
-        c.isCompleted ??
-        (typeof c.status === "string"
+          c.isCompleted ??
+          (typeof c.status === "string"
             ? c.status.toLowerCase() === "completed"
             : false);
 
         return {
-        comicId: c.comicId,
-        title: c.title,
-        slug: c.slug,
-        coverUrl: c.coverImage || null,
-        isCompleted,
-        views,
-        lastChapterNumber, // number | null
+          comicId: c.comicId,
+          title: c.title,
+          slug: c.slug,
+          coverUrl: c.coverImage || null,
+          isCompleted,
+          views,
+          lastChapterNumber, // number | null
         };
-    });
+      });
 
-    const totalComics = comics.length;
-    const totalViews = comics.reduce(
+      const totalComics = comics.length;
+      const totalViews = comics.reduce(
         (sum, c) => sum + (c.views || 0),
         0
-    );
+      );
 
-    return {
+      return {
         groupId: g.groupId,
         name: g.name,
         description: g.description,
@@ -253,14 +253,14 @@ module.exports = ({ sequelize, model, repos }) => {
         channelId: g.channelId,
 
         stats: {
-        totalMembers,
-        totalComics,
-        totalViews,
+          totalMembers,
+          totalComics,
+          totalViews,
         },
 
         members,
         comics,
-    };
+      };
     },
 
 
@@ -544,17 +544,14 @@ module.exports = ({ sequelize, model, repos }) => {
     },
 
     async getGroupDashboard({ groupId, range = "30d" }) {
-      // 1) Kiểm tra nhóm
       const group = await repos.groupRepo.findById(groupId, { model });
       if (!group) throw new AppError("Không tìm thấy nhóm", 404, "GROUP_NOT_FOUND");
 
-      // 2) Tính khoảng thời gian (from/to)
       const now = new Date();
       const days = range === "7d" ? 7 : 30;
       const from = new Date(now);
       from.setDate(from.getDate() - days);
 
-      // 3) Tổng số truyện & chương, views & members
       const comics = await comicRepo.findAll(
         {
           where: { groupId },
@@ -582,14 +579,13 @@ module.exports = ({ sequelize, model, repos }) => {
 
       const updatedChaptersLastRange = comicIds.length
         ? await model.Chapter.count({
-            where: {
-              comicId: { [Op.in]: comicIds },
-              updatedAt: { [Op.gte]: from },
-            },
-          })
+          where: {
+            comicId: { [Op.in]: comicIds },
+            updatedAt: { [Op.gte]: from },
+          },
+        })
         : 0;
 
-      // 4) Activity summary
       const [newComments, newRatings, newFollows, newLikes] = await Promise.all([
         model.Comment.count({
           where: { comicId: { [Op.in]: comicIds }, createdAt: { [Op.gte]: from } },
@@ -605,37 +601,64 @@ module.exports = ({ sequelize, model, repos }) => {
         }),
       ]);
 
-      // 5) Trend (views + chương mới theo ngày) – đơn giản: group by date
-      const trendRows = await model.Chapter.findAll({
-        where: {
-          comicId: { [Op.in]: comicIds },
-          updatedAt: { [Op.gte]: from },
-        },
-        attributes: [
-          [sequelize.fn("DATE", sequelize.col("updatedAt")), "date"],
-          [sequelize.fn("SUM", sequelize.col("views")), "views"],
-          [sequelize.fn("COUNT", sequelize.col("chapterId")), "newChapters"],
-        ],
-        group: [sequelize.fn("DATE", sequelize.col("updatedAt"))],
-        order: [[sequelize.fn("DATE", sequelize.col("updatedAt")), "ASC"]],
-        raw: true,
-      });
+      const trendRows = comicIds.length
+        ? await model.Chapter.findAll({
+          where: {
+            comicId: { [Op.in]: comicIds },
+            updatedAt: { [Op.gte]: from },
+          },
+          attributes: [
+            [sequelize.fn("DATE", sequelize.col("updatedAt")), "date"],
+            [sequelize.fn("COUNT", sequelize.col("chapterId")), "newChapters"],
+          ],
+          group: [sequelize.fn("DATE", sequelize.col("updatedAt"))],
+          order: [[sequelize.fn("DATE", sequelize.col("updatedAt")), "ASC"]],
+          raw: true,
+        })
+        : [];
 
       const trendSeries = trendRows.map((row) => ({
         date: row.date,
-        views: Number(row.views) || 0,
         newChapters: Number(row.newChapters) || 0,
       }));
 
-      // 6) Recent activities: lấy 10 hoạt động gần nhất (comment/rating/follow/like)
-      const recentComments = await model.Comment.findAll({
-        where: { comicId: { [Op.in]: comicIds } },
-        include: [{ model: model.Comic, attributes: ["title"] }, { model: model.User, attributes: ["username"] }],
-        order: [["createdAt", "DESC"]],
-        limit: 5,
-      });
+      const [recentComments, recentRatings, recentLikes] = await Promise.all([
+        comicIds.length
+          ? model.Comment.findAll({
+            where: { comicId: { [Op.in]: comicIds } },
+            include: [
+              { model: model.Comic, attributes: ["title"] },
+              { model: model.User, attributes: ["username"] },
+            ],
+            order: [["createdAt", "DESC"]],
+            limit: 10,
+          })
+          : [],
+        comicIds.length
+          ? model.ComicRating.findAll({
+            where: { comicId: { [Op.in]: comicIds } },
+            include: [
+              { model: model.Comic, attributes: ["title"] },
+              { model: model.User, attributes: ["username"] },
+            ],
+            order: [["ratingAt", "DESC"]],
+            limit: 10,
+          })
+          : [],
+        comicIds.length
+          ? model.ComicLike.findAll({
+            where: { comicId: { [Op.in]: comicIds } },
+            include: [
+              { model: model.Comic, as: "comic", attributes: ["title"] },
+              { model: model.User, as: "user", attributes: ["username"] },
+            ],
+            order: [["likeDate", "DESC"]],
+            limit: 10,
+          })
+          : [],
+      ]);
 
-      const recentActivities = [
+      const activityItems = [
         ...recentComments.map((c) => ({
           id: `comment-${c.commentId}`,
           type: "comment",
@@ -644,8 +667,70 @@ module.exports = ({ sequelize, model, repos }) => {
           action: "bình luận",
           createdAt: c.createdAt,
         })),
-        // TODO: thêm rating/follow/like tương tự
-      ].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 10);
+        ...recentRatings.map((r) => ({
+          id: `rating-${r.ratingId ?? r.id ?? `${r.userId}-${r.comicId}-${r.ratingAt}`}`,
+          type: "rating",
+          userName: r.User?.username || "Ẩn danh",
+          comicTitle: r.Comic?.title || "Không rõ",
+          action: `đánh giá ${r.rating ?? r.score ?? ""}`.trim(),
+          createdAt: r.ratingAt,
+        })),
+        ...recentLikes.map((l) => ({
+          id: `like-${l.likeId ?? l.id ?? `${l.userId}-${l.comicId}-${l.likeDate}`}`,
+          type: "like",
+          userName: l.User?.username || "Ẩn danh",
+          comicTitle: l.Comic?.title || "Không rõ",
+          action: "thích",
+          createdAt: l.likeDate,
+        })),
+      ];
+
+      const recentActivities = activityItems
+        .filter((x) => x.createdAt)
+        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+        .slice(0, 10);
+
+      const { fn, col, literal } = sequelize;
+      const topComics = await model.Comic.findAll({
+        where: { groupId },
+        attributes: [
+          "comicId",
+          "title",
+          "coverImage",
+          [fn("COALESCE", fn("SUM", col("Chapters.views")), 0), "totalViews"],
+        ],
+        include: [
+          {
+            model: model.Chapter,
+            attributes: [],
+            required: false,
+          },
+        ],
+        group: ["Comic.comicId"],
+        order: [[literal("totalViews"), "DESC"]],
+        limit: 5,
+        subQuery: false,
+      });
+
+      const gold = comicIds.length
+        ? (await model.Transaction.sum("amount", {
+          where: {
+            type: "debit",
+            status: "success",
+          },
+          include: [
+            {
+              model: model.Chapter,
+              attributes: [],
+              required: true,
+              where: {
+                comicId: { [Op.in]: comicIds },
+              },
+            },
+          ],
+        })) || 0
+        : 0;
+
 
       return {
         groupId,
@@ -655,6 +740,7 @@ module.exports = ({ sequelize, model, repos }) => {
           totalViews: totalViews || 0,
           totalMembers,
           updatedChaptersLastRange,
+          gold,
         },
         analytics: {
           range,
@@ -668,8 +754,10 @@ module.exports = ({ sequelize, model, repos }) => {
           newLikes,
         },
         recentActivities,
+        topComics,
       };
     },
+
 
     async searchEligibleMembers({ groupId, q, page, limit }) {
       const pageNum = Math.max(1, Number(page) || 1);

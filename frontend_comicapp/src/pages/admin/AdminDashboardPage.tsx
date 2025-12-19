@@ -224,7 +224,7 @@ const AdminDashboardPage: React.FC = () => {
             }
           ),
           axios.get<{ data: TopUsersResponse }>(
-            `${import.meta.env.VITE_API_URL}/api/admin/dashboard/top-users`,
+            `${import.meta.env.VITE_API_URL}/admin/dashboard/top-users`,
             {
               params: { limit: 5 }, // BE không dùng from/to nữa
               headers: authHeaders,
@@ -423,7 +423,7 @@ const AdminDashboardPage: React.FC = () => {
                 : "--"}
             </div>
             <p className="text-xs text-muted-foreground">
-              Dựa trên trường <code>Chapter.views</code>.
+              Dựa trên tất cả các truyện.
             </p>
           </CardContent>
         </Card>
@@ -444,7 +444,7 @@ const AdminDashboardPage: React.FC = () => {
                   )
                 : "--"}{" "}
               <span className="text-xs font-normal text-muted-foreground">
-                gold đã nạp (all time)
+                gold đã nạp (toàn thời gian)
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -458,7 +458,7 @@ const AdminDashboardPage: React.FC = () => {
               </span>
             </p>
             <p className="text-xs text-muted-foreground">
-              Vàng dùng để mở khóa chapter (all time):{" "}
+              Vàng dùng để mở khóa chapter (toàn thời gian):{" "}
               <span className="font-medium">
                 {overview
                   ? numberFmt.format(

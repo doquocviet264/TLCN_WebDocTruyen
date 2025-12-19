@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -8,12 +8,13 @@ import {
   ArrowUpRight,
   BookCopy,
   Eye,
+  Coins,
   Users,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -30,7 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-// Chart
 import {
   ResponsiveContainer,
   AreaChart,
@@ -47,11 +47,11 @@ interface DashboardStats {
   totalViews: number;
   totalMembers: number;
   updatedChaptersLastRange: number;
+  gold: number;
 }
 
 interface DashboardSeriesPoint {
   date: string;
-  views: number;
   newChapters: number;
 }
 
@@ -72,6 +72,13 @@ interface RecentActivityItem {
   createdAt: string;
 }
 
+interface TopComicItem {
+  comicId: number;
+  title: string;
+  coverImage: string | null;
+  totalViews: string | number;
+}
+
 interface GroupDashboard {
   groupId: number;
   stats: DashboardStats;
@@ -81,7 +88,7 @@ interface GroupDashboard {
   };
   activitySummary: ActivitySummary;
   recentActivities: RecentActivityItem[];
-  // optional: topComics nếu bạn muốn thêm sau
+  topComics: TopComicItem[];
 }
 
 interface ApiEnvelope<T = any> {
@@ -109,13 +116,12 @@ export default function GroupManagementPage() {
       try {
         setLoading(true);
         const token = localStorage.getItem("token");
+
         const res = await axios.get<ApiEnvelope<GroupDashboard>>(
           `${import.meta.env.VITE_API_URL}/groups/${groupId}/dashboard`,
           {
             params: { range: "30d" },
-            headers: token
-              ? { Authorization: `Bearer ${token}` }
-              : undefined,
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           }
         );
 
@@ -143,6 +149,25 @@ export default function GroupManagementPage() {
     };
   }, [groupId]);
 
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(
+      d.getMonth() + 1
+    ).padStart(2, "0")}`;
+  };
+
+  const sinceLabel = useMemo(() => {
+    if (!dashboard?.activitySummary?.since) return "";
+    return new Date(dashboard.activitySummary.since).toLocaleDateString(
+      "vi-VN",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }
+    );
+  }, [dashboard?.activitySummary?.since]);
+
   if (loading && !dashboard) {
     return (
       <div className="text-sm text-muted-foreground">
@@ -159,24 +184,30 @@ export default function GroupManagementPage() {
     );
   }
 
-  const { stats, analytics, activitySummary, recentActivities } = dashboard;
+  const { stats, analytics, activitySummary, recentActivities, topComics } =
+    dashboard;
 
-  const series = analytics.series || [];
+  const series = (analytics?.series || []).map((p) => ({
+    ...p,
+    dayLabel: formatDate(p.date),
+  }));
 
-  // Helper format ngày cho chart
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return `${d.getDate()}/${d.getMonth() + 1}`;
-  };
+  const safeTopComics = (topComics || []).map((c) => ({
+    ...c,
+    totalViewsNum:
+      typeof c.totalViews === "string"
+        ? Number(c.totalViews)
+        : c.totalViews ?? 0,
+  }));
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Hàng 4 card thống kê */}
-      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-        {/* Total Comics */}
+      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Comics</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Tổng số truyện
+            </CardTitle>
             <BookCopy className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -187,10 +218,11 @@ export default function GroupManagementPage() {
           </CardContent>
         </Card>
 
-        {/* Total Chapters */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Chapters</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Tổng số chương
+            </CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -201,15 +233,14 @@ export default function GroupManagementPage() {
           </CardContent>
         </Card>
 
-        {/* Total Views */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Views</CardTitle>
+            <CardTitle className="text-sm font-medium">Tổng lượt xem</CardTitle>
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats.totalViews.toLocaleString()}
+              {Number(stats.totalViews || 0).toLocaleString("vi-VN")}
             </div>
             <p className="text-xs text-muted-foreground">
               Tổng lượt xem mọi chương của nhóm
@@ -217,12 +248,37 @@ export default function GroupManagementPage() {
           </CardContent>
         </Card>
 
-        {/* Updated Chapters (range) */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Updated Chapters
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Thành viên</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalMembers}</div>
+            <p className="text-xs text-muted-foreground">
+              Số thành viên trong nhóm
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Vàng hiện có</CardTitle>
+            <Coins className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {Number(stats.gold || 0).toLocaleString("vi-VN")}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tổng số vàng hiện có của nhóm
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Chương mới</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -230,19 +286,18 @@ export default function GroupManagementPage() {
               {stats.updatedChaptersLastRange}
             </div>
             <p className="text-xs text-muted-foreground">
-              Chương được cập nhật trong {analytics.range || "30d"} qua
+              Trong {analytics.range || "30 ngày"} qua
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Biểu đồ phân tích */}
       <Card>
         <CardHeader className="flex flex-row items-center">
           <div className="grid gap-1">
-            <CardTitle>Performance</CardTitle>
+            <CardTitle>Thống kê chương mới</CardTitle>
             <CardDescription>
-              Lượt xem và chương mới trong {analytics.range || "30 ngày"}.
+              Biểu đồ số chương mới trong {analytics.range || "30 ngày"}.
             </CardDescription>
           </div>
         </CardHeader>
@@ -254,22 +309,30 @@ export default function GroupManagementPage() {
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
-                data={series.map((p) => ({
-                  ...p,
-                  dayLabel: formatDate(p.date),
-                }))}
+                data={series}
                 margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
               >
                 <defs>
-                  <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="currentColor" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="currentColor" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorChapters" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="currentColor" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="currentColor" stopOpacity={0} />
+                  <linearGradient
+                    id="colorChapters"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="5%"
+                      stopColor="currentColor"
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="currentColor"
+                      stopOpacity={0}
+                    />
                   </linearGradient>
                 </defs>
+
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="dayLabel"
@@ -281,33 +344,20 @@ export default function GroupManagementPage() {
                   tick={{ fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
+                  allowDecimals={false}
                 />
                 <Tooltip
-                  contentStyle={{
-                    fontSize: 12,
-                  }}
-                  formatter={(value: any, name: any) => {
-                    if (name === "views") return [value, "Views"];
-                    if (name === "newChapters") return [value, "New Chapters"];
-                    return [value, name];
-                  }}
+                  contentStyle={{ fontSize: 12 }}
+                  formatter={(value: any) => [value, "Chương mới"]}
                   labelFormatter={(label: string | number) => `Ngày ${label}`}
                 />
 
                 <Area
                   type="monotone"
-                  dataKey="views"
-                  name="views"
-                  stroke="currentColor"
-                  fillOpacity={0.4}
-                  fill="url(#colorViews)"
-                />
-                <Area
-                  type="monotone"
                   dataKey="newChapters"
                   name="newChapters"
                   stroke="currentColor"
-                  fillOpacity={0.3}
+                  fillOpacity={0.35}
                   fill="url(#colorChapters)"
                 />
               </AreaChart>
@@ -316,48 +366,77 @@ export default function GroupManagementPage() {
         </CardContent>
       </Card>
 
-      {/* Hàng: Comics table + Recent activity */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-7">
-        {/* Comics table (tạm thời nếu chưa có topComics từ BE thì ghi chú) */}
         <Card className="lg:col-span-4">
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>Comics</CardTitle>
+              <CardTitle>Top truyện</CardTitle>
               <CardDescription>
-                (Tuỳ bạn: có thể trả thêm topComics từ API để hiển thị.)
+                Top truyện theo lượt xem trong nhóm
               </CardDescription>
             </div>
-            <Button asChild size="sm" className="ml-auto gap-1">
-              <Link to={`/groups/${dashboard.groupId}`}>
-                View All
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </Button>
           </CardHeader>
+
           <CardContent>
-            <p className="text-xs text-muted-foreground">
-              TODO: BE có thể trả thêm <code>topComics</code> để hiển thị bảng này.
-            </p>
+            {safeTopComics.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Chưa có dữ liệu top truyện.
+              </p>
+            ) : (
+              <Table className="table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[70%]">Truyện</TableHead>
+                    <TableHead className="w-[30%] text-right">
+                      Lượt xem
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {safeTopComics.slice(0, 5).map((c) => {
+                    const views = Number(c.totalViewsNum || 0);
+                    return (
+                      <TableRow key={c.comicId} className="hover:bg-muted/40">
+                        <TableCell className="py-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={c.coverImage || ""}
+                              alt={c.title}
+                              className="h-10 w-10 rounded-md object-cover shrink-0"
+                              loading="lazy"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-sm leading-snug">
+                                {c.title}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="py-2 text-right font-medium tabular-nums">
+                          {views.toLocaleString("vi-VN")}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
-        {/* Recent activity */}
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle>Các hoạt động gần đây</CardTitle>
             <CardDescription className="text-xs">
-              Từ{" "}
-              {new Date(activitySummary.since).toLocaleDateString("vi-VN", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })}
-              : {activitySummary.newComments} bình luận,{" "}
+              Từ {sinceLabel}: {activitySummary.newComments} bình luận,{" "}
               {activitySummary.newRatings} đánh giá,{" "}
-              {activitySummary.newFollows} theo dõi,{" "}
-              {activitySummary.newLikes} lượt thích.
+              {activitySummary.newFollows} theo dõi, {activitySummary.newLikes}{" "}
+              lượt thích.
             </CardDescription>
           </CardHeader>
+
           <CardContent className="grid gap-6">
             {recentActivities.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -366,6 +445,17 @@ export default function GroupManagementPage() {
             ) : (
               recentActivities.map((activity) => {
                 const initial = activity.userName?.[0]?.toUpperCase() || "?";
+                const timeLabel = new Date(activity.createdAt).toLocaleString(
+                  "vi-VN",
+                  {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  }
+                );
+
                 return (
                   <div
                     key={activity.id}
@@ -378,25 +468,22 @@ export default function GroupManagementPage() {
                       />
                       <AvatarFallback>{initial}</AvatarFallback>
                     </Avatar>
-                    <div className="grid gap-1">
-                      <p className="leading-none">
-                        <span className="font-medium">
-                          {activity.userName}
-                        </span>{" "}
+
+                    <div className="grid gap-1 min-w-0">
+                      <p className="leading-none truncate">
+                        <span className="font-medium">{activity.userName}</span>{" "}
                         <span className="text-muted-foreground">
                           {activity.action}{" "}
                           <span className="font-medium">
                             {activity.comicTitle}
                           </span>
                         </span>
+                        <Badge variant="secondary" className="ml-2">
+                          {activity.type}
+                        </Badge>
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(activity.createdAt).toLocaleString("vi-VN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          day: "2-digit",
-                          month: "2-digit",
-                        })}
+                        {timeLabel}
                       </p>
                     </div>
                   </div>

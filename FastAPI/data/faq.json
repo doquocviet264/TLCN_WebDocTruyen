@@ -1,0 +1,58 @@
+[
+  {
+    "id": "faq_topup",
+    "title": "Cách nạp tiền / nạp xu",
+    "category": "payment",
+    "keywords": ["nạp tiền", "nạp xu", "mua xu", "thanh toán", "topup", "ví"],
+    "content": "Để nạp tiền (xu), bạn vào mục Ví/Xu trên website, chọn gói xu phù hợp, chọn phương thức thanh toán và xác nhận giao dịch. Sau khi thanh toán thành công, xu sẽ được cộng vào tài khoản của bạn."
+  },
+  {
+    "id": "faq_unlock_chapter",
+    "title": "Cách mua và mở khóa chương truyện",
+    "category": "reading",
+    "keywords": ["mua chương", "mở khóa chương", "unlock", "chương khóa", "trả phí"],
+    "content": "Để mở khóa chương truyện, bạn cần đăng nhập tài khoản, nạp đủ xu và nhấn vào nút Mở khóa tại chương bị khóa. Hệ thống sẽ trừ xu trong ví và cho phép bạn đọc chương đó ngay lập tức."
+  },
+  {
+    "id": "faq_login",
+    "title": "Đăng nhập và đăng ký tài khoản",
+    "category": "account",
+    "keywords": ["đăng nhập", "đăng ký", "login", "register", "tạo tài khoản"],
+    "content": "Bạn có thể đăng ký tài khoản mới bằng email và mật khẩu tại trang Đăng ký. Sau khi đăng ký thành công, hãy đăng nhập để sử dụng đầy đủ các chức năng như theo dõi truyện, mua chương và bình luận."
+  },
+  {
+    "id": "faq_forgot_password",
+    "title": "Quên hoặc đổi mật khẩu",
+    "category": "account",
+    "keywords": ["quên mật khẩu", "đổi mật khẩu", "reset password"],
+    "content": "Nếu bạn quên mật khẩu, hãy vào trang Đăng nhập và chọn Quên mật khẩu. Nhập email đã đăng ký, hệ thống sẽ gửi hướng dẫn đặt lại mật khẩu cho bạn."
+  },
+  {
+    "id": "faq_follow_comic",
+    "title": "Theo dõi truyện",
+    "category": "reading",
+    "keywords": ["theo dõi truyện", "follow", "đánh dấu truyện"],
+    "content": "Để theo dõi truyện, bạn cần đăng nhập và nhấn nút Theo dõi tại trang chi tiết truyện. Truyện theo dõi sẽ xuất hiện trong danh sách cá nhân của bạn và bạn sẽ nhận thông báo khi có chương mới."
+  },
+  {
+    "id": "faq_report_issue",
+    "title": "Báo lỗi chương hoặc nội dung",
+    "category": "support",
+    "keywords": ["báo lỗi", "lỗi chương", "ảnh không hiển thị", "report"],
+    "content": "Nếu bạn gặp lỗi như chương không hiển thị hoặc hình ảnh bị lỗi, hãy sử dụng chức năng Báo lỗi tại trang đọc chương hoặc liên hệ với quản trị viên để được hỗ trợ."
+  },
+  {
+    "id": "faq_translator",
+    "title": "Đăng ký làm dịch giả / nhóm dịch",
+    "category": "role",
+    "keywords": ["dịch giả", "nhóm dịch", "translator", "apply"],
+    "content": "Để đăng ký làm dịch giả hoặc tham gia nhóm dịch, bạn cần đăng nhập tài khoản và gửi yêu cầu đăng ký. Quản trị viên sẽ xét duyệt và phản hồi cho bạn."
+  },
+  {
+    "id": "faq_notification",
+    "title": "Thông báo và cập nhật chương mới",
+    "category": "system",
+    "keywords": ["thông báo", "chương mới", "notification"],
+    "content": "Hệ thống sẽ gửi thông báo khi truyện bạn theo dõi có chương mới hoặc khi có sự kiện quan trọng. Bạn có thể xem và quản lý thông báo trong mục Thông báo của website."
+  }
+]

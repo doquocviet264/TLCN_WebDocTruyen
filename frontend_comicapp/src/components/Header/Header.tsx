@@ -1,12 +1,28 @@
-import { useState, useContext, useRef, useEffect, FormEvent } from "react"; 
+import { useState, useContext, useRef, useEffect, FormEvent } from "react";
 import { type Socket } from "socket.io-client";
 import { io } from "socket.io-client";
 import iconWeb from "@/assets/images/icon_web.png";
-import { Search, Sun, Moon, User, LogIn, UserPlus, Menu, X, Bell } from "lucide-react";
+import {
+  Search,
+  Sun,
+  Moon,
+  User,
+  LogIn,
+  UserPlus,
+  Menu,
+  X,
+  Bell,
+  MessageCircle,
+} from "lucide-react";
 import Navbar from "./Navbar";
-import { Button } from "@/components/ui/button"; 
-import { Input } from "@/components/ui/input"; 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "@/context/AuthContext";
@@ -37,15 +53,22 @@ interface ApiNotificationResponse {
 }
 
 interface SearchData {
-  comics: Array<{ id: number; slug: string; title: string; image: string; lastChapter: number | string }>;
+  comics: Array<{
+    id: number;
+    slug: string;
+    title: string;
+    image: string;
+    lastChapter: number | string;
+  }>;
   totalComics: number;
   totalPages: number;
   currentPage: number;
 }
 
-export default function Header() {
+export default function Header({ onToggleChatbot }: { onToggleChatbot: () => void }) {
   const { isLoggedIn, logout, user } = useContext(AuthContext);
-  const [showBecomeTranslatorDialog, setShowBecomeTranslatorDialog] = useState(false);
+  const [showBecomeTranslatorDialog, setShowBecomeTranslatorDialog] =
+    useState(false);
   const [showMyGroupsDialog, setShowMyGroupsDialog] = useState(false);
 
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -55,6 +78,8 @@ export default function Header() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showChatbot, setShowChatbot] = useState(false);
+  const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<number | null>(null);
@@ -101,10 +126,15 @@ export default function Header() {
     const ctrl = new AbortController();
     (async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-          signal: ctrl.signal,
-        });
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/notifications`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            signal: ctrl.signal,
+          }
+        );
         const json: ApiNotificationResponse = await res.json();
         if (res.ok && json?.success) {
           const flatData = json.data.map((item) => ({
@@ -125,7 +155,7 @@ export default function Header() {
     return () => ctrl.abort();
   }, [isLoggedIn]);
 
-  // SOCKET: realtime notification:new 
+  // SOCKET: realtime notification:new
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -157,26 +187,34 @@ export default function Header() {
     });
 
     s.connect();
+    setSocketInstance(s);
+
     socketRef.current = s;
 
     return () => {
       s.off("notification:new");
       s.disconnect();
+      setSocketInstance(null);
       socketRef.current = null;
     };
   }, [isLoggedIn]);
 
-  // MARK AS READ / READ ALL 
+  // MARK AS READ / READ ALL
   const markAsRead = async (id: number) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications/${id}/read`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/notifications/${id}/read`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
       const json = await res.json();
       if (res.ok && json?.success) {
         setNotifications((prev) =>
-          prev.map((n) => (n.notificationId === id ? { ...n, isRead: true } : n))
+          prev.map((n) =>
+            n.notificationId === id ? { ...n, isRead: true } : n
+          )
         );
       }
     } catch (err) {
@@ -186,10 +224,13 @@ export default function Header() {
 
   const markAllAsRead = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications/read-all`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/notifications/read-all`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
       const json = await res.json();
       if (res.ok && json?.success) {
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -267,7 +308,10 @@ export default function Header() {
   // Đóng kết quả tìm kiếm khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(event.target as Node)
+      ) {
         setShowResults(false);
       }
     };
@@ -294,7 +338,10 @@ export default function Header() {
         </Link>
 
         {/* Search Desktop */}
-        <div className="hidden md:flex flex-1 max-w-md mx-8 relative" ref={searchRef}>
+        <div
+          className="hidden md:flex flex-1 max-w-md mx-8 relative"
+          ref={searchRef}
+        >
           <form onSubmit={handleSearchSubmit} className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
@@ -355,7 +402,10 @@ export default function Header() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+            <DropdownMenuContent
+              align="end"
+              className="w-80 max-h-96 overflow-y-auto"
+            >
               <div className="flex items-center justify-between p-2 border-b">
                 <h3 className="font-semibold">Thông báo</h3>
                 {unreadCount > 0 && (
@@ -379,13 +429,17 @@ export default function Header() {
                   <DropdownMenuItem
                     key={notification.notificationId}
                     className={`p-3 border-b last:border-b-0 cursor-pointer ${
-                      !notification.isRead ? "bg-blue-50 dark:bg-blue-950/20" : ""
+                      !notification.isRead
+                        ? "bg-blue-50 dark:bg-blue-950/20"
+                        : ""
                     }`}
                     onClick={() => markAsRead(notification.notificationId)}
                   >
                     <div className="flex flex-col space-y-1">
                       <div className="flex justify-between items-start">
-                        <span className="font-medium text-sm">{notification.title}</span>
+                        <span className="font-medium text-sm">
+                          {notification.title}
+                        </span>
                         {!notification.isRead && (
                           <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-1"></span>
                         )}
@@ -403,9 +457,27 @@ export default function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9">
-            {darkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-9 w-9"
+          >
+            {darkMode ? (
+              <Moon className="h-4 w-4" />
+            ) : (
+              <Sun className="h-4 w-4" />
+            )}
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={onToggleChatbot}
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
+
 
           {isLoggedIn ? (
             <DropdownMenu>
@@ -421,7 +493,9 @@ export default function Header() {
 
                 {/* user thường: hiện nút ứng tuyển dịch giả */}
                 {user?.role === "user" && (
-                  <DropdownMenuItem onClick={() => setShowBecomeTranslatorDialog(true)}>
+                  <DropdownMenuItem
+                    onClick={() => setShowBecomeTranslatorDialog(true)}
+                  >
                     Trở thành dịch giả
                   </DropdownMenuItem>
                 )}
@@ -451,7 +525,11 @@ export default function Header() {
                     <LogIn className="h-4 w-4 mr-1" /> Đăng nhập
                   </Link>
                 </Button>
-                <Button size="sm" asChild className="bg-primary hover:bg-primary/90">
+                <Button
+                  size="sm"
+                  asChild
+                  className="bg-primary hover:bg-primary/90"
+                >
                   <Link to="/auth/register">
                     <UserPlus className="h-4 w-4 mr-1" /> Đăng ký
                   </Link>
@@ -459,7 +537,11 @@ export default function Header() {
               </div>
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 sm:hidden">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 sm:hidden"
+                  >
                     <Menu className="h-4 w-4" />
                   </Button>
                 </SheetTrigger>
@@ -470,7 +552,11 @@ export default function Header() {
                         <LogIn className="h-4 w-4 mr-2" /> Đăng nhập
                       </Link>
                     </Button>
-                    <Button variant="outline" asChild className="w-full justify-start">
+                    <Button
+                      variant="outline"
+                      asChild
+                      className="w-full justify-start"
+                    >
                       <Link to="/auth/register">
                         <UserPlus className="h-4 w-4 mr-2" /> Đăng ký
                       </Link>
@@ -485,7 +571,10 @@ export default function Header() {
 
       {/* Mobile Search */}
       {showMobileSearch && (
-        <div className="border-t bg-background/95 backdrop-blur md:hidden" ref={searchRef}>
+        <div
+          className="border-t bg-background/95 backdrop-blur md:hidden"
+          ref={searchRef}
+        >
           <div className="container px-4 py-3">
             <form onSubmit={handleSearchSubmit} className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -542,6 +631,7 @@ export default function Header() {
         open={showMyGroupsDialog}
         onOpenChange={setShowMyGroupsDialog}
       />
+
     </header>
   );
 }

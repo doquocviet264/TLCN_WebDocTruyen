@@ -69,7 +69,9 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
     description: "",
     onConfirm: () => {},
   });
+
   const token = localStorage.getItem("token");
+
   const updatePage = (pageIndex: number, patch: Partial<PageScript>) => {
     setScriptData((prev) =>
       prev.map((p) => (p.pageIndex === pageIndex ? { ...p, ...patch } : p))
@@ -92,6 +94,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
         };
 
         type DraftData = { scriptData: DraftScriptV1 | DraftScriptV2 | null };
+
         const res = await axios.get<ApiOkEnvelope<DraftData>>(
           `${import.meta.env.VITE_API_URL}/reviews/draft/${chapter.id}`,
           {
@@ -138,7 +141,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
         }
       } catch (error) {
         console.error("Error loading draft:", error);
-        toast.error("Failed to load draft. Initializing a new editor.");
+        toast.error("Không thể tải bản nháp. Đang khởi tạo trình soạn thảo mới.");
         const initPages: PageScript[] = chapter.images.map((img) => ({
           pageIndex: img.pageNumber,
           imageUrl: img.url,
@@ -192,10 +195,10 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
         audioUrl: audioSrc,
         duration: duration ?? undefined,
       });
-      toast.success("Audio generated successfully!");
+      toast.success("Tạo audio thành công!");
     } catch (error) {
       console.error(error);
-      toast.error("Failed to generate audio.");
+      toast.error("Tạo audio thất bại. Vui lòng thử lại.");
       updatePage(pageIndex, { isLoading: false });
     }
   };
@@ -203,8 +206,8 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
   const handleGenerateAIDialogues = (pageIndex: number, imageUrl: string) => {
     setConfirmation({
       isOpen: true,
-      title: "Generate AI Dialogues",
-      description: `Are you sure you want to generate AI dialogues for page ${pageIndex}? This will replace the current content.`,
+      title: "Tạo hội thoại bằng AI",
+      description: `Bạn có chắc muốn tạo hội thoại AI cho trang ${pageIndex} không? Nội dung hiện tại sẽ bị ghi đè.`,
       onConfirm: async () => {
         setIsGeneratingAI((prev) => ({ ...prev, [pageIndex]: true }));
 
@@ -230,10 +233,10 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
             audioUrl: undefined,
             duration: undefined,
           });
-          toast.success("AI dialogues generated successfully!");
+          toast.success("Tạo hội thoại AI thành công!");
         } catch (error) {
           console.error("AI generation error:", error);
-          toast.error("Failed to generate AI dialogues.");
+          toast.error("Tạo hội thoại AI thất bại. Vui lòng thử lại.");
         } finally {
           setIsGeneratingAI((prev) => ({ ...prev, [pageIndex]: false }));
         }
@@ -265,10 +268,10 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
           },
         }
       );
-      toast.success("Draft saved successfully!");
+      toast.success("Lưu bản nháp thành công!");
     } catch (e) {
       console.error(e);
-      toast.error("Failed to save draft.");
+      toast.error("Lưu bản nháp thất bại. Vui lòng thử lại.");
     } finally {
       setIsSaving(false);
     }
@@ -277,9 +280,8 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
   const handlePublish = () => {
     setConfirmation({
       isOpen: true,
-      title: "Publish Review",
-      description:
-        "Are you sure you want to publish the audio review for this chapter?",
+      title: "Xuất bản review",
+      description: "Bạn có chắc muốn xuất bản review audio cho chương này không?",
       onConfirm: async () => {
         setIsPublishing(true);
         try {
@@ -292,10 +294,10 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
               },
             }
           );
-          toast.success("Review published successfully!");
+          toast.success("Xuất bản review thành công!");
         } catch (e) {
           console.error(e);
-          toast.error("Failed to publish review.");
+          toast.error("Xuất bản review thất bại. Vui lòng thử lại.");
         } finally {
           setIsPublishing(false);
         }
@@ -317,16 +319,16 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
       <header className="sticky top-0 z-10 border-b border-border bg-card/80 backdrop-blur-sm px-6 py-4 flex justify-between items-center">
         <div>
           <h1 className="text-lg font-bold text-card-foreground">
-            Review Editor
+            Trình soạn thảo review
           </h1>
           <p className="text-xs text-muted-foreground">
-            Editing: {chapter.title} (Chapter {chapter.number})
+            Đang chỉnh sửa: {chapter.title} (Chương {chapter.number})
           </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex flex-col text-xs">
             <span className="uppercase text-[10px] font-semibold tracking-wider mb-1 text-muted-foreground">
-              Review Voice
+              Giọng review
             </span>
             <select
               className="text-sm border border-border bg-background rounded-md px-2 py-1 text-foreground outline-none focus:ring-2 focus:ring-ring min-w-[220px]"
@@ -350,7 +352,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {isSaving ? "Saving..." : "Save Draft"}
+            {isSaving ? "Đang lưu..." : "Lưu bản nháp"}
           </button>
           <button
             onClick={handlePublish}
@@ -362,7 +364,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
             ) : (
               <Play className="h-4 w-4" />
             )}
-            {isPublishing ? "Publishing..." : "Publish Review"}
+            {isPublishing ? "Đang xuất bản..." : "Xuất bản"}
           </button>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-muted">
             <X size={20} />
@@ -378,11 +380,11 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
             >
               <div className="w-full lg:w-5/12 flex justify-center items-start p-4 relative group">
                 <span className="absolute top-2 left-2 text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
-                  Page {page.pageIndex}
+                  Trang {page.pageIndex}
                 </span>
                 <img
                   src={page.imageUrl}
-                  alt={`Page ${page.pageIndex}`}
+                  alt={`Trang ${page.pageIndex}`}
                   className="max-w-full h-auto object-contain rounded shadow-lg"
                   loading="lazy"
                 />
@@ -391,7 +393,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-semibold flex items-center gap-2 text-card-foreground">
                     <span className="w-2 h-6 rounded-full bg-primary" />
-                    Audio Script for Page {page.pageIndex}
+                    Kịch bản audio cho trang {page.pageIndex}
                   </h3>
                   <button
                     onClick={() =>
@@ -405,17 +407,17 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
                     ) : (
                       <Sparkles size={16} />
                     )}
-                    AI Writer
+                    AI Viết thoại
                   </button>
                 </div>
                 <div className="space-y-3 flex-1">
                   <div className="p-4 rounded-lg border border-border bg-background shadow-sm">
                     <label className="text-[10px] uppercase font-bold tracking-wider mb-1 block text-muted-foreground">
-                      Dialogue for Page {page.pageIndex}
+                      Lời thoại trang {page.pageIndex}
                     </label>
                     <textarea
                       className="w-full text-sm border border-border bg-input rounded-md p-2 focus:ring-2 focus:ring-ring outline-none resize-none min-h-[80px]"
-                      placeholder="Enter dialogue for this page..."
+                      placeholder="Nhập lời thoại cho trang này..."
                       value={page.text}
                       onChange={(e) =>
                         updatePage(page.pageIndex, {
@@ -427,10 +429,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
                     />
                     {page.audioUrl && (
                       <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-muted">
-                        <Play
-                          size={14}
-                          className="text-green-600 fill-current"
-                        />
+                        <Play size={14} className="text-green-600 fill-current" />
                         <audio
                           controls
                           src={page.audioUrl}
@@ -456,7 +455,7 @@ const ReviewEditor: React.FC<ReviewEditorProps> = ({
                         ) : (
                           <Mic size={14} />
                         )}
-                        {page.audioUrl ? "Regenerate Audio" : "Generate Audio"}
+                        {page.audioUrl ? "Tạo lại audio" : "Tạo audio"}
                       </button>
                     </div>
                   </div>

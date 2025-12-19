@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { useContext } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,7 +14,9 @@ import {
   Menu,
   X,
   Bell,
+  LogOut,
 } from "lucide-react";
+import { AuthContext } from "@/context/AuthContext";
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -37,11 +40,12 @@ export default function AdminSidebar({
   setIsCollapsed,
 }: AdminSidebarProps) {
   const location = useLocation();
+  const { logout } = useContext(AuthContext);
 
   return (
     <div
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300",
+        "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col",
         isCollapsed ? "w-16" : "w-64"
       )}
     >
@@ -58,7 +62,11 @@ export default function AdminSidebar({
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="text-sidebar-foreground hover:bg-sidebar-accent"
         >
-          {isCollapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
+          {isCollapsed ? (
+            <Menu className="h-5 w-5 shrink-0" />
+          ) : (
+            <X className="h-5 w-5 shrink-0" />
+          )}
         </Button>
       </div>
 
@@ -80,7 +88,7 @@ export default function AdminSidebar({
                     isCollapsed && "justify-center px-2"
                   )}
                 >
-                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <Icon className="h-5 w-5 shrink-0" />
                   {!isCollapsed && <span>{item.title}</span>}
                 </Button>
               </Link>
@@ -88,6 +96,21 @@ export default function AdminSidebar({
           })}
         </nav>
       </ScrollArea>
+
+      {/* Logout */}
+      <div className="px-3 py-4 border-t border-sidebar-border">
+        <Button
+          variant="ghost"
+          onClick={logout}
+          className={cn(
+            "w-full text-red-500 hover:text-red-600 hover:bg-red-500/10",
+            isCollapsed ? "justify-center px-2" : "justify-start gap-3"
+          )}
+        >
+          <LogOut className="h-5 w-5 shrink-0" />
+          {!isCollapsed && <span>Đăng xuất</span>}
+        </Button>
+      </div>
     </div>
   );
 }
